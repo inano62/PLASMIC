@@ -1,0 +1,17 @@
+﻿# Node / Frontend
+frontend/node_modules
+frontend/.next
+frontend/dist
+
+# PHP / Laravel
+backend/vendor
+backend/storage/*.key
+backend/.env
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
