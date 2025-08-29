@@ -1,0 +1,43 @@
+log_level: info
+port: 7880
+bind_addresses:
+  - 0.0.0.0
+  - '::'
+#turn:
+#  enabled: true
+#  servers:
+#    - urls:
+##        - turn:localhost:3478?transport=udp
+##        - turns:localhost:5349?transport=tcp
+#        - turn:host.docker.internal:3478?transport=tcp   # ★ これに統一
+#      username: lkuser
+#      credential: lkpass
+
+rtc:
+  udp_port: 7882
+  tcp_port: 7881
+  allow_tcp_fallback: true
+  force_tcp: true
+  use_external_ip: false
+  node_ip: host.docker.internal   # ★ Windows/Dockerのキモ
+
+turn_servers:
+  - host: host.docker.internal
+    port: 3478
+    protocol: tcp            # tls/tcp/udp のいずれか（今回は tcp）
+    username: lkuser
+    credential: lkpass
+#  node_ip: 127.0.0.1
+#  use_external_ip: false
+#  nat_1to1_ips:
+#    - 127.0.0.1
+#  nat1to1_ips:
+#    - 172.31.32.1
+#    - 192.168.2.183
+
+keys:
+  k1: supersecret1234567890supersecret1234
+#  devkey: secret
+#  devkey: 6d1680de114c4ac0908936c8de20c4905896dbb2e2634087a87bb5ed6df986cb4
+
+  # フロントのトークン発行と一致させる

@@ -32,8 +32,33 @@ services:
       - "8000"
     command: php -S 0.0.0.0:8000 -t public
     networks: [ appnet ]
+  coturn:
+    image: coturn/coturn
+    container_name: coturn
+    ports:
+      - "3478:3478/tcp"        # ★ TLSなしTCPだけでOK（権限不要）
+#      - "5349:5349/tcp"
+#      - "3478:3478"     # TURN(udp)
+#      - "5349:5349"     # TURNS(tcp/tls)
+#      - "49160-49200:49160-49200/udp"  # relay用ポートレンジ
+    command: >
+      -n --log-file=stdout --no-cli --realm=localhost
+      --lt-cred-mech --user lkuser:lkpass
+#      -n --log-file=stdout --no-cli --realm=localhost
+#      --min-port=49160 --max-port=49200
+#      --lt-cred-mech --user lkuser:lkpass
 
-
+  node:
+    image: node:20-alpine
+    container_name: node
+    working_dir: /var/www
+    command: sh -lc 'npm i && npm run dev'
+    environment:
+      - VITE_DEV_SERVER_HOST=0.0.0.0
+    volumes:
+      - ./frontend:/var/www
+    ports:
+      - "5177:5177"   # ← これ必須（Viteを5176で公開）
   mysql:
     build:
       context: "docker/mysql/"
@@ -69,29 +94,44 @@ services:
       - "1025:1025"
 
 #  livekit:
-#    image: livekit/livekit-server:v1.6.2
+#    image: livekit/livekit-server:latest
 #    container_name: livekit
-#    command: [ "--dev","--bind","0.0.0.0" ]   # ← "::" をいったんやめる
+#    command: ["--config","/config.yaml.example","--bind","0.0.0.0"]
+#    environment:
+#      - LIVEKIT_KEYS=k1:supersecret1234567890supersecret1234   # ← これがサーバの鍵になる
 #    ports:
-#      - "7882:7880"         # ホスト:コンテナ
-#      - "7881:7881/udp"
+#      - "7880:7880"        # HTTP/WS
+#      - "7881:7881"        # WebRTC/TCP
+#      - "7882:7882/udp"    # WebRTC/UDP
+#    volumes:
+#      - ./livekit/config.yaml.example:/config.yaml.example:ro
 #    restart: unless-stopped
+#    healthcheck:
+#      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7880/"]
+#      interval: 10s
+#      timeout: 3s
+#      retries: 5
   livekit:
     image: livekit/livekit-server:latest
     container_name: livekit
-    command: ["--config","/config.yaml","--bind","0.0.0.0","--dev","--bind 0.0.0"]
+    command: ["--bind","0.0.0.0"]   # ← --config を使わない
+    environment:
+      LIVEKIT_LOG_LEVEL: debug
+      LIVEKIT_PORT: "7880"
+      LIVEKIT_BIND_ADDRESSES: "0.0.0.0"
+      LIVEKIT_RTC_UDP_PORT: "7882"
+      LIVEKIT_RTC_TCP_PORT: "7881"
+      LIVEKIT_RTC_ALLOW_TCP_FALLBACK: "true"
+      LIVEKIT_RTC_FORCE_TCP: "true"
+      LIVEKIT_RTC_USE_EXTERNAL_IP: "false"
+      LIVEKIT_RTC_NODE_IP: "127.0.0.1"
+#      LIVEKIT_RTC_NAT_1TO1_IPS: "127.0.0.1"
+      LIVEKIT_KEYS: "k1: supersecret1234567890supersecret1234"
     ports:
-      - "7880:7880"        # HTTP/WS
-      - "7881:7881"        # WebRTC/TCP
-      - "7882:7882/udp"    # WebRTC/UDP
-    volumes:
-      - ./livekit/config.yaml:/config.yaml:ro
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7880/"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
 
 
 volumes:
