@@ -1,0 +1,21 @@
+port: 7880
+bind_addresses:
+  - 0.0.0.0
+  - '::'
+
+rtc:
+  udp_port: 7882
+  tcp_port: 7881
+  node_ip: 127.0.0.1
+  use_external_ip: false
+  force_tcp: true
+#  nat_1to1_ips:
+#    - 127.0.0.1
+#  nat1to1_ips:
+#    - 172.31.32.1
+#    - 192.168.2.183
+
+keys:
+  devkey: 6d1680de114c4ac0908936c8de20c4905896dbb2e2634087a87bb5ed6df986cb4
+
+  # フロントのトークン発行と一致させる
