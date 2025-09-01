@@ -59,3 +59,31 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+```aiignore
+↓ライブきっとの起動呪文
+# 既存を全部止める（存在しなくてもOK）
+docker rm -f livekit-dev 2>$null
+
+# dev モードで起動（HTTP:7880 / WS, RTC:7881 / UDP:7882）
+docker run -d --name livekit-dev `
+  -p 7880:7880 -p 7881:7881 -p 7882:7882/udp `
+  livekit/livekit-server --dev
+
+# 起動ログを確認（Ctrl+Cで抜ける）
+docker logs -f livekit-dev
+# 7880/TCP が LISTEN かをチェック
+Test-NetConnection -ComputerName 127.0.0.1 -Port 7880
+# JWT 再発行
+$tok = Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8000/api/dev/token `
+  -ContentType 'application/json' `
+  -Body (@{ room='r_test'; identity=('test_'+[guid]::NewGuid()) } | ConvertTo-Json)
+
+# LiveKit に投げる（200 が返れば成功）
+(Invoke-WebRequest -UseBasicParsing -Uri ("http://127.0.0.1:7880/rtc/validate?access_token=" + $tok.token)).StatusCode
+cd C:\Users\jemes\Documents\Plasmic\PLASMIC\www
+php artisan config:clear
+php artisan optimize:clear
+
+```

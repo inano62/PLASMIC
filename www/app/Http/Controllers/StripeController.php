@@ -9,6 +9,20 @@ use Stripe\Webhook;
 
 class StripeController extends Controller
 {
+    public function handle(Request $r){
+        $event = \Stripe\Event::constructFrom($r->all());
+
+        if ($event->type === 'payment_intent.succeeded') {
+            $pi = $event->data->object;
+            $res = \App\Models\Reservation::where('stripe_payment_intent_id',$pi->id)->first();
+            if ($res && $res->status !== 'paid') {
+                $res->status = 'paid';
+                $res->save();
+                // 必要ならメール通知
+            }
+        }
+        return response('ok', 200);
+    }
     public function createCheckout(Reservation $reservation)
     {
         Stripe::setApiKey(env('STRIPE_SECRET'));

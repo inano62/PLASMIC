@@ -8,6 +8,12 @@ return new class extends Migration {
 public function up(): void {
 Schema::create('reservations', function (Blueprint $t) {
 $t->uuid('id')->primary();
+    $t->foreignId('tenant_id')->nullable()->constrained();
+    $t->foreignId('customer_user_id')->nullable()->constrained('users');
+    $t->timestamp('start_at')->nullable();
+    $t->timestamp('end_at')->nullable();
+    $t->integer('amount')->default(0);               // 税込
+    $t->string('stripe_payment_intent_id')->nullable();
 $t->string('room_name')->index();
 $t->timestamp('scheduled_at');
 $t->unsignedInteger('duration_min')->default(30);

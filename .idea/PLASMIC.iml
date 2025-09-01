@@ -255,15 +255,20 @@
       <excludeFolder url="file://$MODULE_DIR$/www.bak/vendor/vlucas/phpdotenv" />
       <excludeFolder url="file://$MODULE_DIR$/www.bak/vendor/voku/portable-ascii" />
       <excludeFolder url="file://$MODULE_DIR$/www.bak/vendor/webmozart/assert" />
+      <excludeFolder url="file://$MODULE_DIR$/www/vendor/agence104/livekit-server-sdk" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/carbonphp/carbon-doctrine-types" />
+      <excludeFolder url="file://$MODULE_DIR$/www/vendor/google/protobuf" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/laravel/pail" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/league/uri" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/league/uri-interfaces" />
+      <excludeFolder url="file://$MODULE_DIR$/www/vendor/php-http/discovery" />
+      <excludeFolder url="file://$MODULE_DIR$/www/vendor/psr/http-server-handler" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/staabm/side-effects-detector" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/stripe/stripe-php" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/symfony/clock" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/symfony/polyfill-php84" />
       <excludeFolder url="file://$MODULE_DIR$/www/vendor/symfony/polyfill-php85" />
+      <excludeFolder url="file://$MODULE_DIR$/www/vendor/twirp/twirp" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
