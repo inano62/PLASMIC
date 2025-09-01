@@ -1,30 +1,23 @@
 <?php
 
-/**
- * http://localhost:XXXX/#/login-code/develop
- * でログインすることができる
- */
-
 namespace Database\Seeders;
 
+use App\Models\User;
+// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use App\Infrastructure\Dao\CategoryDao;
-use App\Infrastructure\Dao\CourseDao;
-use App\Infrastructure\Dao\CurriculumDao;
-use App\Infrastructure\Dao\OccupationDao;
-use App\Infrastructure\Dao\ParentCategoryDao;
-use App\Infrastructure\Dao\PlanDao;
-use App\Infrastructure\Dao\ProviderDao;
-use App\Infrastructure\Dao\TermDao;
-use App\Infrastructure\Dao\UserDao;
-use App\Infrastructure\Dao\UserTokenDao;
 
 class DatabaseSeeder extends Seeder
 {
     /**
-     * @return void
+     * Seed the application's database.
      */
-    public function run()
+    public function run(): void
     {
+        // User::factory(10)->create();
+
+        User::factory()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+        ]);
     }
 }

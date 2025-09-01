@@ -1,50 +1,35 @@
-FROM php:8.1-apache
+FROM php:8.3-fpm-alpine
 
-# PHP 設定ファイル
-# COPY php.ini /etc/php.ini
-COPY php.ini /usr/local/etc/php/php.ini
+# OS & build deps（★ linux-headers を追加）
+RUN apk add --no-cache \
+    bash git vim wget curl tzdata \
+    icu-dev oniguruma-dev \
+    libpng-dev libjpeg-turbo-dev freetype-dev \
+    libzip-dev libxml2-dev postgresql-dev \
+    linux-headers \
+    $PHPIZE_DEPS
 
-# Composerのインストール
-RUN cd /usr/bin && curl -s http://getcomposer.org/installer | php && ln -s /usr/bin/composer.phar /usr/bin/composer
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+ && docker-php-ext-install -j"$(nproc)" gd pdo pdo_mysql mysqli intl zip bcmath opcache
+cd .\frontend\
+$env:LK_API_KEY="devkey"
+$env:LK_API_SECRET="6d1680de114c4ac0908936c8de20c4905896dbb2e2634087a87bb5ed6df986cb4"
 
-# ミドルウェアインストール
-# https://hub.docker.com/_/php/
-RUN apt-get update && apt-get install -y \
-        libfreetype6-dev \
-        libjpeg62-turbo-dev \
-        libpng-dev \
-        git \
-        zip \
-        unzip \
-        vim \
-        libpng-dev \
-        libpq-dev \
-        libonig-dev \
-        libxml2-dev \
-        libzip-dev \
-        wget \
-        msmtp \
-        msmtp-mta \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd \
-    && docker-php-ext-install pdo pdo_mysql mysqli \
-    # && docker-php-ext-configure imap --with-kerberos --with-imap-ssl \
-    # && docker-php-ext-install imap \
-    && docker-php-ext-install zip
+# 参加者ごとに異なる identity を使う（alice / bob 例）
+$tokAlice = (node .\scripts\mint-token.mjs demo alice).Trim()
+$tokBob   = (node .\scripts\mint-token.mjs demo bob).Trim()
 
-# Install and enable imagick PECL extensions
-# RUN pecl install imagick \
-#   && docker-php-ext-enable imagick
+# サーバーで有効性チェック（両方とも "success" ならOK）
+curl.exe -G --http1.1 --data-urlencode ("access_token="+$tokAlice) http://127.0.0.1:7880/rtc/validate
+curl.exe -G --http1.1 --data-urlencode ("access_token="+$tokBob)   http://127.0.0.1:7880/rtc/validate
 
-# xdebug
-RUN pecl install xdebug-3.1.5 && \
-    docker-php-ext-enable xdebug
+# 2つのウィンドウで開く（クエリはそれぞれのトークン）
+Start-Process ("http://localhost:5176/?token=" + [uri]::EscapeDataString($tokAlice))
+Start-Process ("http://localhost:5176/?token=" + [uri]::EscapeDataString($tokBob))
 
-# modRewriteを有効化する
-RUN mv /etc/apache2/mods-available/rewrite.load /etc/apache2/mods-enabled
-RUN /bin/sh -c a2enmod rewrite
+# xdebug（必要なら）
+RUN pecl install xdebug \
+ && docker-php-ext-enable xdebug
 
-# タイムゾーン設定
-RUN ln -sf  /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
-
-CMD ["apache2-foreground"]
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+WORKDIR /var/www
