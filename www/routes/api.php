@@ -8,32 +8,23 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\PublicController;
 use App\Http\Controllers\TimeslotController;
+use App\Http\Controllers\AvailabilityController;
+use App\Http\Controllers\AppointmentController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Agence104\LiveKit\AccessToken;
+use Livekit\AccessToken;
 use Agence104\LiveKit\VideoGrant;
 use Agence104\LiveKit\AccessTokenOptions;
 use Carbon\Carbon;
 use Carbon\CarbonInterval;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
+use App\Models\Reservation;
 
 Route::post('/rooms/issue', [RoomController::class, 'issue']);
 Route::post('/reservations', [ReservationController::class, 'create']);
 Route::get('/availability', [ReservationController::class, 'availability']);
 Route::post('/pay/checkout', [StripeController::class, 'createCheckout']);
 Route::get('/pay/confirm',  [StripeController::class, 'confirm']);
-//Route::post('/dev/token', [TokenController::class, 'devToken']);
-//Route::post('/dev/token', function (Request $r) {
-//    $room = $r->input('room');
-//    $identity = $r->input('identity') ?? ('host-' . Str::uuid());
-//    if (!$room) return response()->json(['error'=>'room required'], 400);
-//
-//    $at = new AccessToken(env('LIVEKIT_API_KEY'), env('LIVEKIT_API_SECRET'), ['identity'=>$identity, 'ttl'=>3600]);
-//    $grant = new VideoGrant(['roomJoin'=>true, 'room'=>$room, 'canPublish'=>true, 'canSubscribe'=>true]);
-//    $at->addGrant($grant);
-//    $jwt = $at->toJwt();
-//
-//    return response()->json(['token'=>$jwt, 'url'=>env('LIVEKIT_URL')]); // wss://...
-//});
 Route::post('/pay/checkout/{id}', [StripeController::class, 'createCheckout']); // returns {url}
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);
 Route::post('/reservations', [ReservationController::class, 'create']);       // 予約作成（未払い）
@@ -66,34 +57,6 @@ Route::post('/reservations', [ReservationController::class, 'createForSlot']);
 Route::post('/subscriptions/start', [SubscriptionController::class, 'start']);
 
 Route::post('/stripe/webhook', [\App\Http\Controllers\StripeWebhookController::class, 'handle']);
-/** 予約作成（お客さんが発行） */
-//Route::post('/appointments', function(Request $r){
-//    $data = $r->validate([
-//        'lawyer_id'   => 'required|integer',
-//        'client_name' => 'required|string',
-//        'client_email'=> 'nullable|email',
-//        'client_phone'=> 'nullable|string',
-//        'starts_at'   => 'required|date', // ISO8601
-//    ]);
-//    $room = 'r_'.Str::uuid();
-//    $id = DB::table('appointments')->insertGetId([
-//        ...$data, 'room'=>$room, 'status'=>'booked',
-//        'created_at'=>now(), 'updated_at'=>now(),
-//    ]);
-//    return response()->json([
-//        'appointmentId'=>$id,
-//        'room'=>$room,
-//        'clientJoinUrl'=> url("/wait?aid=$id"),
-//        'hostJoinUrl'  => url("/host?aid=$id"),
-//    ]);
-//});
-
-/** aid→room を返す（顧客/士業 共通） */
-//Route::get('/appointments/{id}', function($id){
-//    $row = DB::table('appointments')->where('id',$id)->first(['room','starts_at','status']);
-//    abort_if(!$row, 404);
-//    return response()->json($row);
-//});
 
 /** 近接予約（士業ダッシュボード用） 認証が無ければクエリで仮指定 */
 Route::get('/appointments/nearby', function(Request $r){
@@ -160,42 +123,7 @@ Route::get('/timeslots', function (Request $r) {
 });
 /**  routes/api.php に aid→room を返すAPIがあるか確認。無ければ追加。 */
 
-Route::post('/appointments', function(Request $r){
-    $data = $r->validate([
-        'lawyer_id'   => 'required|integer',
-        'client_name' => 'required|string',
-        'client_email'=> 'nullable|email',
-        'client_phone'=> 'nullable|string',
-        'starts_at'   => 'required|date',
-        'visitor_id'  => 'nullable|string',
-    ]);
-
-    $start = Carbon::parse($data['starts_at'])->timezone('Asia/Tokyo');
-    if ($start->lt(Carbon::now('Asia/Tokyo')->addMinutes(5))) {
-        return response()->json(['message'=>'現在以降の時刻で予約してください'], 422);
-    }
-
-    $room = 'r_'.Str::uuid();
-    $id = DB::table('appointments')->insertGetId([
-        'lawyer_id'=>$data['lawyer_id'],
-        'client_name'=>$data['client_name'],
-        'client_email'=>$data['client_email'] ?? '',
-        'client_phone'=>$data['client_phone'] ?? '',
-        'starts_at'=>$start->clone()->timezone('UTC'), // DBはUTC保存推奨
-        'room'=>$room,
-        'status'=>'booked',
-        'visitor_id'=>$data['visitor_id'] ?? Str::uuid(),
-        'created_at'=>now(), 'updated_at'=>now(),
-    ]);
-
-    // SPAのルータに合わせて「相対パス」を返す（絶対URLはフロントでoriginを足す）
-    return response()->json([
-        'appointmentId'=>$id,
-        'room'=>$room,
-        'clientJoinPath'=>"/wait?aid=$id",
-        'hostJoinPath'  =>"/host?aid=$id",
-    ]);
-});
+//Route::post('/appointments', [AppointmentController::class, 'store']);
 Route::get('/appointments/window', function (Request $r) {
     $lawyerId  = (int) $r->query('lawyer_id', 1);
     $beforeMin = min(max((int) $r->query('before_min', 60), 0), 10080);     // 0〜7日
@@ -255,28 +183,195 @@ Route::get('/my/appointments', function(Request $r){
         ->get(['id','starts_at','status']);
     return response()->json($rows);
 });
+Route::post('/my/appointments/lookup', [AppointmentLookupController::class, 'lookup']);
 Route::get('/appointments/{id}', function ($id) {
-    $row = DB::table('appointments')->where('id',$id)
-        ->first(['room','starts_at','status']);
-    abort_if(!$row, 404);
-    return response()->json($row);
-})->whereNumber('id');
+    $row = Reservation::find($id);
+    if (!$row) {
+        return response()->json(['message' => 'not found'], 404);
+    }
+    return response()->json([
+        'id'        => $row->id,
+        'room_name' => $row->room_name,
+        'start_at'  => $row->starts_at,
+        'status'    => $row->status,
+    ]);
+});
+Route::get('/availability', [AvailabilityController::class, 'index']);
+//Route::post('/dev/token', function (Request $r) {
+//    $room     = $r->input('room', 'test-room');
+//    $identity = $r->input('identity', 'user-'.bin2hex(random_bytes(3)));
+//
+//    $apiKey    = env('LIVEKIT_API_KEY', 'devkey');
+//    $apiSecret = env('LIVEKIT_API_SECRET', 'devsecret');
+//    $url       = env('LIVEKIT_URL', null); // 例: wss://your-livekit.example.com
+//
+//    // LiveKit の JWT（シンプルな video grant）
+//    $payload = [
+//        'iss'   => $apiKey,
+//        'sub'   => $identity,
+//        'iat'   => time(),
+//        'exp'   => time() + 3600,
+//        // v0/v1 互換。最近の SDK でも "video" トップレベル grant は有効
+//        'video' => [
+//            'roomJoin'     => true,
+//            'room'         => $room,
+//            'canPublish'   => true,
+//            'canSubscribe' => true,
+//        ],
+//    ];
+//
+//    $jwt = JWT::encode($payload, $apiSecret, 'HS256');
+//
+//    return response()->json([
+//        'token' => $jwt,
+//        'url'   => $url, // 無ければフロントが dev 用 fallback を使う
+//    ]);
+//});
+//Route::get('/wait/resolve', function (Request $r) {
+//    $ticket = $r->query('ticket');
+//    if (!$ticket) return response()->json(['message'=>'ticket required'], 400);
+//    try {
+//        $payload = JWT::decode($ticket, new Key(env('TICKET_SECRET','changeme'), 'HS256'));
+//        $room = $payload->sub ?? null;
+//        if (!$room) return response()->json(['message'=>'invalid ticket'], 404);
+//        return response()->json(['room' => $room]);
+//    } catch (\Throwable $e) {
+//        return response()->json(['message'=>'invalid ticket','detail'=>$e->getMessage()], 400);
+//    }
+//});
+Route::get('/wait/verify/{ticket}', function (string $ticket) {
+    // ★暫定：JWT検証を飛ばして、予約IDを ticket に直接入れてる前提にする
+    $res = \App\Models\Reservation::findOrFail((int) $ticket);
+    return [
+        'reservation_id' => $res->id,
+        'room' => $res->room_name,
+        'guest_name' => $res->guest_name,
+        'starts_at' => $res->start_at,
+    ];
+});
+Route::post('/wait/ticket', function (Request $r) {
+    $resId = (int) $r->input('reservation_id');
+    if (!$resId) {
+        return response()->json(['message' => 'reservation_id required'], 400);
+    }
 
-Route::post('/dev/token', function (Illuminate\Http\Request $r) {
-    $room = $r->input('room');
-    $identity = $r->input('identity') ?? ('user-'.Str::uuid());
-    if (!$room) return response()->json(['error'=>'room required'], 400);
+    $res = Reservation::find($resId);
+    if (!$res) {
+        return response()->json(['message' => 'reservation not found'], 404);
+    }
 
-    $opts  = (new AccessTokenOptions())->setIdentity($identity)->setTtl(3600);
-    $grant = (new VideoGrant())->setRoomJoin(true)->setRoomName($room)->setCanPublish(true)->setCanSubscribe(true);
-
-    $jwt = (new AccessToken(env('LIVEKIT_API_KEY'), env('LIVEKIT_API_SECRET')))
-        ->init($opts)->setGrant($grant)->toJwt();
+    // ★ ここで発行
+    $jwt = JWT::encode(
+        ['sub' => $res->id, 'exp' => time() + 900], // 15分有効など
+        env('TICKET_SECRET'),
+        'HS256'
+    );
 
     return response()->json([
-        'token' => $jwt,
-        'url'   => env('LIVEKIT_URL'),
+        'ticket'         => $jwt,
+        'clientJoinPath' => '/wait?ticket=' . $jwt,   // 顧客用
+        'hostJoinPath'   => '/host?aid=' . $res->id,  // 士業用（aid方式）
+    ]);
+});
+Route::get('/wait/verify', function (Illuminate\Http\Request $r) {
+    $ticket = $r->query('ticket');
+    if (!$ticket) return response()->json(['message'=>'ticket required'], 400);
+    try {
+        $payload = \Firebase\JWT\JWT::decode($ticket, new \Firebase\JWT\Key(env('TICKET_SECRET'), 'HS256'));
+    } catch (\Throwable $e) {
+        return response()->json(['message'=>'invalid ticket','detail'=>$e->getMessage()], 400);
+    }
+    $res = \App\Models\Reservation::findOrFail($payload->sub);
+    return response()->json([
+        'reservation_id' => $res->id,
+        'room'           => $res->room_name,
+        'guest_name'     => $res->guest_name,
+        'starts_at'      => $res->start_at,
     ]);
 });
 
+Route::get('/wait/verify', function (Request $r) {
+    $ticket = $r->query('ticket');
+    if (!$ticket) {
+        return response()->json(['message'=>'ticket required'], 400);
+    }
+    try {
+        $payload = JWT::decode($ticket, new Key(env('TICKET_SECRET'), 'HS256'));
+    } catch (\Throwable $e) {
+        return response()->json(['message'=>'invalid ticket', 'detail'=>$e->getMessage()], 400);
+    }
+    $res = Reservation::find($payload->sub);
+    if (!$res) {
+        return response()->json(['message' => 'not found'], 404);
+    }
+    return response()->json([
+        'reservation_id' => $res->id,
+        'room'           => $res->room_name,
+        'guest_name'     => $res->guest_name,
+        'starts_at'      => $res->start_at,
+    ]);
+});
+Route::get('/appointments/resolve', [AppointmentController::class, 'resolve']);
 
+
+
+// 1) LiveKit トークン（最小）
+Route::post('/dev/token', function (Request $r) {
+    $room = $r->input('room', 'test-room');
+    $identity = $r->input('identity', 'user-' . bin2hex(random_bytes(3)));
+
+    $apiKey = env('LIVEKIT_API_KEY', 'devkey');
+    $apiSecret = env('LIVEKIT_API_SECRET', 'devsecret');
+    $url = env('LIVEKIT_URL', null); // 例: wss://your-livekit.example.com
+
+    $payload = [
+        'iss' => $apiKey,
+        'sub' => $identity,
+        'iat' => time(),
+        'exp' => time() + 3600,
+        'video' => [
+            'roomJoin' => true,
+            'room' => $room,
+            'canPublish' => true,
+            'canSubscribe' => true,
+        ],
+    ];
+    $jwt = JWT::encode($payload, $apiSecret, 'HS256');
+
+    return response()->json(['token' => $jwt, 'url' => $url]);
+});
+
+// 2) ticket → room を解決（予約DBを使わず “room 名を sub に入れる” 方式）
+Route::get('/wait/resolve', function (Request $r) {
+    $ticket = $r->query('ticket');
+    if (!$ticket) return response()->json(['message' => 'ticket required'], 400);
+    try {
+        $payload = JWT::decode($ticket, new Key(env('TICKET_SECRET', 'changeme'), 'HS256'));
+        $room = $payload->sub ?? null;
+        if (!$room) return response()->json(['message' => 'invalid ticket'], 404);
+        return response()->json(['room' => $room]);
+    } catch (\Throwable $e) {
+        return response()->json(['message' => 'invalid ticket', 'detail' => $e->getMessage()], 400);
+    }
+});
+
+// 3) デモ用：/api/appointments を “DB不要のスタブ” に差し替え
+//   予約フォームが叩いてくるので 201 で部屋URLを返すだけ
+Route::post('/appointments', function (Request $r) {
+    $id = (string)Str::uuid();
+    $room = 'room_' . Str::lower(Str::random(10));
+
+    // ticket=room 方式で発行（sub に room を入れる）
+    $ticket = JWT::encode(
+        ['sub' => $room, 'exp' => time() + 1800],
+        env('TICKET_SECRET', 'changeme'),
+        'HS256'
+    );
+
+    return response()->json([
+        'appointmentId' => $id,
+        'clientJoinPath' => '/wait?room=' . $room,   // ゲストはこれで入れる
+        'hostJoinPath' => '/host?room=' . $room,   // ホストも room で入れる
+        'ticket' => $ticket,               // もし ticket で渡したいなら使う
+    ], 201);
+});

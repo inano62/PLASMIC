@@ -1,6 +1,6 @@
 ﻿import { AccessToken } from 'livekit-server-sdk';
 
-// config.yaml.example の keys と一致させる
+// example.config.yaml.example.example の keys と一致させる
 const apiKey = 'devkey';
 const apiSecret = 'secret';
 
