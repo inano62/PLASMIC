@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+:root { --accent: #4f46e5; }
+/* アクセントをどこでも使えるように */
+.text-accent { color: var(--accent); }
+.bg-accent { background-color: var(--accent); }
+.border-accent { border-color: var(--accent); }
+
+
+/* iframe プレビューの見た目調整（任意） */
+iframe { background: white; }
+
+/*!* 中央グリッドの「自分（ローカル参加者）」だけ消す *!*/
+/*.lk-grid-layout [data-lk-local-participant="true"] {*/
+/*    display: none !important;*/
+/*}*/
+
+

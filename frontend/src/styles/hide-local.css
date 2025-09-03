@@ -1,0 +1,39 @@
+/* 以前の "自分タイル非表示" や "右下小窓" のCSSは削除してください */
+
+/* 横一列ベーシック（画面幅が足りないときは自動折返し） */
+.lk-basic-row {
+    display: grid !important;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 12px;
+    height: 100%;
+    align-items: stretch;
+}
+
+/* 折り返しを許可（人数が増えると2段目以降に回る） */
+@media (max-width: 1200px) {
+    .lk-basic-row {
+        grid-auto-flow: row;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+}
+/* sb-admin.css などに追記（どこでもOK） */
+.intake-bubble{
+    display:inline-block;
+    max-width:100%;          /* 親の幅を超えない */
+    white-space:pre-wrap;    /* 改行を保持しつつ折返し */
+    overflow-wrap:anywhere;  /* 日本語/長URLも折返し */
+    word-break:break-word;   /* 念のため */
+    padding:.5rem .75rem;
+    border-radius:.5rem;
+}
+.intake-bubble.admin{ background:var(--bs-primary); color:#fff; }
+.intake-bubble.client{ background:#fff; border:1px solid #e5e7eb; }
+.intake-bubble.system{ background:#f8f9fa; color:#6b7280; }
+
+
+/* .btn の nowrap をこの領域だけ解除 */
+.intake-quick .btn{
+    white-space:normal;     /* ← 重要 */
+    max-width:100%;
+}

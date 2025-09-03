@@ -1,0 +1,87 @@
+/* src/styles/sb-admin.css（超要約版） */
+.sb-nav-fixed #layoutSidenav { display:flex; }
+#layoutSidenav_nav { width: 250px; flex-shrink:0; }
+#layoutSidenav_content { flex:1 0 auto; }
+#layoutSidenav.toggled #layoutSidenav_nav { width:0; overflow:hidden; }
+.sb-sidenav { min-height:100vh; }
+.sb-sidenav .sb-sidenav-menu .nav .nav-link { color: rgba(255,255,255,.8); }
+.sb-sidenav-dark { background-color:#212529; color:#fff; }
+.sb-sidenav-footer { padding:1rem; background:rgba(0,0,0,.2); }
+
+/* --- SideNav を縦積み&整列させる --- */
+.sb-sidenav .sb-sidenav-menu { padding-top: .5rem; }
+.sb-sidenav .nav {
+    display: flex;              /* Bootstrap の .nav はもともと flex */
+    flex-direction: column;     /* ← 縦並びに強制 */
+    gap: 0;                     /* 行間は個別のpaddingで調整 */
+    padding-left: 0;
+}
+
+.sb-sidenav .nav-link {
+    display: flex;
+    align-items: center;
+    padding: .75rem 1rem;
+    font-size: .925rem;
+    color: rgba(255,255,255,.8);
+    text-decoration: none;
+}
+.sb-sidenav .nav-link:hover {
+    color: #fff;
+    background: rgba(255,255,255,.05);
+}
+
+.sb-sidenav .sb-sidenav-menu-heading {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    color: rgba(255,255,255,.5);
+    padding: 1rem 1rem .5rem;
+}
+
+.sb-sidenav .sb-nav-link-icon {
+    width: 1.25rem;             /* アイコンの幅を固定してズレ防止 */
+    margin-right: .5rem;
+    display: inline-flex;
+    justify-content: center;
+}
+
+/* アクティブ表示（NavLinkの .active と連動） */
+.sb-sidenav-dark .nav-link.active {
+    color: #fff;
+    background: rgba(255,255,255,.10);
+}
+
+/* 既存の最小スタイル（そのまま残す） */
+.sb-nav-fixed #layoutSidenav { display:flex; }
+#layoutSidenav_nav { width: 250px; flex-shrink:0; }
+#layoutSidenav_content { flex:1 0 auto; }
+#layoutSidenav.toggled #layoutSidenav_nav { width:0; overflow:hidden; }
+.sb-sidenav { min-height:100vh; }
+.sb-sidenav .sb-sidenav-menu .nav .nav-link { color: rgba(255,255,255,.8); }
+.sb-sidenav-dark { background-color:#212529; color:#fff; }
+.sb-sidenav-footer { padding:1rem; background:rgba(0,0,0,.2); }
+
+/* sb-admin.css 等に */
+.intake-timeline {
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: hidden; /* 横は出さない */
+}
+
+/* メッセージの吹き出し */
+.intake-bubble{
+    display:inline-block;
+    max-width:100%;          /* 親を超えない */
+    white-space:pre-wrap;    /* 改行保持＋折返し */
+    overflow-wrap:anywhere;  /* 日本語/URLも折返し */
+    word-break:break-word;
+    padding:.5rem .75rem;
+    border-radius:.5rem;
+}
+.intake-bubble.admin{ background:var(--bs-primary); color:#fff; }
+.intake-bubble.client{ background:#fff; border:1px solid #e5e7eb; }
+.intake-bubble.system{ background:#f8f9fa; color:#6b7280; }
+
+/* flex レイアウトの横はみ出し対策 */
+.sb-nav-fixed #layoutSidenav { display: flex; min-width: 0; }
+#layoutSidenav_content { flex: 1 1 auto; min-width: 0; overflow-x: hidden; }

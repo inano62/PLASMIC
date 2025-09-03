@@ -1,20 +1,33 @@
 // import path from 'path';
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+// import tailwindConfig from "./tailwind.config.ts";
+import tailwind from "@tailwindcss/vite";
 
 
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(),tailwind()],
   build: {
     outDir: '../public/dist',  // Laravelのpublic直下にビルド成果物を出力
     emptyOutDir: true,
   },
-  // resolve: {
-  //   alias: {
-  //     '@': path.resolve(__dirname, './src'),
-  //   },
-  // }
+  server: {
+    host: true,   // Docker から受ける
+    port: 5176,        // ← docker-compose と一致させる
+    proxy:{
+        '/api':{
+            target:'http://127.0.0.1:8000',
+            changeOrigin:true,
+            secure:false,
+            configure(proxy) {
+                proxy.on('error', (err) => console.error('[vite-proxy]', err))
+                proxy.on('proxyReq', (_, req) => console.log('[vite-proxy] ->', req.url))
+                proxy.on('proxyRes', (_, req) => console.log('[vite-proxy] <-', req.url))
+            },
+        }
+    },
+  },
+    resolve: {
+        alias: { "@": "/src" }, // shadcn が要求する import alias
+    },
 })
