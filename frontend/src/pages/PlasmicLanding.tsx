@@ -21,6 +21,7 @@ interface VerticalContent {
     features: FeatureCard[];
     faq: FaqItem[];
     demoLink: string;
+    PublicReserve: string;
     signupLink: string;
 }
 interface FeatureCard { title: string; desc: string }
@@ -62,6 +63,7 @@ const VERTICALS: Record<VerticalKey, VerticalContent> = {
         features: baseFeatures,
         faq: baseFaq,
         demoLink: "/demo",
+        PublicReserve:"/reserve",
         signupLink: "/signup",
     },
     law: {
@@ -77,6 +79,7 @@ const VERTICALS: Record<VerticalKey, VerticalContent> = {
             { q: "セキュリティは？", a: "TLS/HTTPS、権限管理、監査ログ、定期バックアップを提供します。" },
         ],
         demoLink: "/demo?vertical=law",
+        PublicReserve:"/reserve",
         signupLink: "/signup?plan=pro&v=law",
     },
     beauty: {
@@ -88,6 +91,7 @@ const VERTICALS: Record<VerticalKey, VerticalContent> = {
         features: baseFeatures,
         faq: baseFaq,
         demoLink: "/demo?vertical=beauty",
+        PublicReserve:"/reserve",
         signupLink: "/signup?plan=pro&v=beauty",
     },
     edu: {
@@ -103,6 +107,7 @@ const VERTICALS: Record<VerticalKey, VerticalContent> = {
             { q: "オンライン授業の品質は？", a: "LiveKitベースでブラウザだけで高品質なビデオが使えます。" },
         ],
         demoLink: "/demo?vertical=edu",
+        PublicReserve: "/reserve",
         signupLink: "/signup?plan=pro&v=edu",
     },
 };
@@ -160,7 +165,7 @@ export default function PlasmicLanding(props: { vertical?: VerticalKey }) {
                         </h1>
                         <p className="mt-5 text-lg text-slate-600">{V.subhead}</p>
                         <div className="mt-8 flex flex-wrap gap-3">
-                            <a id="cta" href={V.demoLink} className="px-5 py-3 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700">デモを見る</a>
+                            <a id="cta" href={V.PublicReserve} className="px-5 py-3 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700">相談する</a>
                             <a href="#pricing" className="px-5 py-3 rounded-2xl border border-slate-300 hover:bg-slate-50">料金を見る</a>
                         </div>
                         <div className="mt-6 flex flex-wrap gap-2">

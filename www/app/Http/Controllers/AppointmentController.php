@@ -6,108 +6,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
-use App\Models\Reservation;
 use Firebase\JWT\JWT;
 use Symfony\Component\HttpFoundation\Response;
 use Firebase\JWT\Key;
+use App\Models\Appointment;   // ★ 追加
+use App\Models\Reservation;   // 使っていれば残す
 
 
 class AppointmentController extends Controller
 {
-    public function store(Request $r)
-    {
-        $data = $r->validate([
-            'lawyer_id'      => ['required','integer'],
-            'client_name'    => ['required','string','max:255'],
-            'client_email'   => ['nullable','email','max:255'],
-            'client_phone'   => ['nullable','string','max:50'],
-            'start_at'       => ['required','date'],
-            'visitor_id'     => ['required','string','max:64'],
-            'purpose_title'  => ['required','string','max:255'],
-            'purpose_detail' => ['nullable','string'],
-        ]);
 
-        // 次の30分にスナップ
-        $start = Carbon::parse($data['start_at'])->second(0)->millisecond(0);
-        $m = (int) $start->minute;
-        if ($m % 30 !== 0) $start->minute($m + (30 - $m % 30));
-        $duration = 30;
-        $end = $start->copy()->addMinutes($duration);
-
-        // 衝突チェック＆作成はトランザクションで
-        $res = DB::transaction(function () use ($data, $start, $end) {
-            $busy = Reservation::where('lawyer_id', $data['lawyer_id'])
-                ->where('status','!=','canceled')
-                ->where('start_at','<',$end)
-                ->where('end_at','>',$start)
-                ->lockForUpdate()
-                ->exists();
-
-            if ($busy) {
-                return null; // 後で409にする
-            }
-
-            return Reservation::create([
-                'id'               => (string) Str::uuid(),
-                'tenant_id'        => null,
-                'customer_user_id' => null,
-
-                'start_at'     => $start,
-                'end_at'       => $end,
-                'scheduled_at' => $start,
-
-                'amount'    => 0,
-                'price_jpy' => 0,
-
-                'room_name'  => 'room_' . Str::lower(Str::random(10)),
-                'host_code'  => (string) Str::uuid(),
-                'guest_code' => (string) Str::uuid(),
-
-                'status' => 'booked', // ← pending でもOKだが入室想定なら booked が自然
-
-                'host_name'      => null,
-                'guest_name'     => $data['client_name'],
-                'guest_email'    => $data['client_email'] ?? null,
-                'purpose_title'  => $data['purpose_title'],
-                'purpose_detail' => $data['purpose_detail'] ?? null,
-                'requester_name'  => $data['client_name'],
-                'requester_email' => $data['client_email'] ?? null,
-                'requester_phone' => $data['client_phone'] ?? null,
-            ]);
-        });
-
-        if (!$res) {
-            // 次の空き30分を提案（最大 10 コマ先）
-            $cand = $start->copy(); $found = null;
-            for ($i=0; $i<10; $i++) {
-                $cs = $cand->copy(); $ce = $cs->copy()->addMinutes(30);
-                $b = Reservation::where('lawyer_id', $data['lawyer_id'])
-                    ->where('status','!=','canceled')
-                    ->where('start_at','<',$ce)->where('end_at','>',$cs)
-                    ->exists();
-                if (!$b) { $found = $cs; break; }
-                $cand->addMinutes(30);
-            }
-            return response()->json([
-                'error' => 'slot_conflict',
-                'message' => '希望の時間は埋まっています',
-                'suggested_start_at' => $found?->toIso8601String(),
-            ], 409);
-        }
-
-        // ★ ここで ticket を発行（sub は Reservation の id）
-        $ticket = JWT::encode(
-            ['sub' => $res->id, 'exp' => time() + 900],
-            env('TICKET_SECRET'),
-            'HS256'
-        );
-
-        return response()->json([
-            'appointmentId'  => (string) $res->id,
-            'clientJoinPath' => '/wait?ticket=' . $ticket,
-            'hostJoinPath'   => '/host?aid=' . $res->id,
-        ], 201);
-    }
     public function resolve(Request $req)
     {
         $aid    = $req->query('aid');
@@ -159,5 +67,248 @@ class AppointmentController extends Controller
         $pad = strlen($data) % 4;
         if ($pad > 0) $data .= str_repeat('=', 4 - $pad);
         return base64_decode($data) ?: '';
+    }
+
+    public function show(int $id) {
+        $a = Appointment::findOrFail($id);
+        return response()->json([
+            'id'        => $a->id,
+            'room'      => $a->room_name,
+            'starts_at' => $a->starts_at,
+            'status'    => $a->status,
+        ]);
+    }
+
+    // 直近60分（士業ダッシュボード）
+    public function nearby(Request $r) {
+        $lawyerId = (int) $r->query('lawyer_id', 1);
+        $from = now()->subMinutes(5);
+        $to   = now()->addMinutes(60);
+
+        $rows = Appointment::where('lawyer_user_id',$lawyerId)
+            ->whereBetween('starts_at', [$from,$to])
+            ->where('status','booked')
+            ->orderBy('starts_at')
+            ->get(['id','starts_at','room_name as room']);
+
+        return response()->json($rows);
+    }
+
+    // 今後N日（士業ダッシュボード）
+    public function upcoming(Request $r) {
+        $lawyerId = (int) $r->query('lawyer_id', 1);
+        $days = min((int)$r->query('days',14), 60);
+        $from = now()->subMinutes(5);
+        $to   = now()->addDays($days);
+
+        $rows = Appointment::where('lawyer_user_id',$lawyerId)
+            ->whereBetween('starts_at', [$from,$to])
+            ->where('status','booked')
+            ->orderBy('starts_at')
+            ->get(['id','starts_at','room_name as room']);
+
+        return response()->json($rows);
+    }
+
+    // 予約作成（支払い前の pending）
+    public function store(Request $r){
+        $data = $r->validate([
+            'tenant_id'      => ['required','integer'],
+            'lawyer_user_id' => ['required','integer'],
+            'client_user_id' => ['required','integer'],
+            'starts_at'      => ['required','date'],
+            'duration_min'   => ['nullable','integer'],
+            'price_jpy'      => ['nullable','integer'],
+        ]);
+
+        $a = Appointment::create([
+            'tenant_id'      => (int)$data['tenant_id'],
+            'lawyer_user_id' => (int)$data['lawyer_user_id'],
+            'client_user_id' => (int)$data['client_user_id'],
+            'starts_at'      => new Carbon($data['starts_at']),
+            'ends_at'        => (new Carbon($data['starts_at']))->addMinutes((int)($data['duration_min'] ?? 30)),
+            'status'         => 'pending',                 // 支払導入時はここから booked へ遷移
+            'price_jpy'      => (int)($data['price_jpy'] ?? 0),
+            'room_name'      => 'room_'.Str::lower(Str::random(10)),
+        ]);
+        // 予約直後に入室できる運用なら booked 化
+        // $a->status = 'booked'; $a->save();
+
+        // その場でチケット発行して返す（UIで即コピー可能）
+        $jwt = JWT::encode(
+            ['sub'=>$a->room_name,'exp'=>time()+1800],
+            env('TICKET_SECRET','changeme'),'HS256'
+        );
+
+        return response()->json([
+            'id'             => $a->id,
+            'room'           => $a->room_name,
+            'status'         => $a->status,
+            'clientJoinPath' => "/wait?ticket=$jwt",
+            'hostJoinPath'   => "/host?aid={$a->id}",
+        ], 201);
+    }
+
+    // 支払い成功などで確定
+    public function confirm(int $id){
+        $a = Appointment::findOrFail($id);
+        $a->status = 'booked';
+        $a->save();
+        return response()->json(['ok'=>true]);
+    }
+
+    // チケット発行（ticket の sub は room_name に統一）
+    public function issueTicket(int $id){
+        $a = Appointment::findOrFail($id);
+        $jwt = JWT::encode(
+            ['sub'=>$a->room_name,'exp'=>time()+1800],
+            env('TICKET_SECRET','changeme'),
+            'HS256'
+        );
+        return response()->json([
+            'ticket'         => $jwt,
+            'clientJoinPath' => "/wait?ticket=$jwt",
+            'hostJoinPath'   => "/host?aid=$id",
+        ]);
+    }
+
+    // 今すぐビデオ（承認パネル用）
+    public function instant(Request  $req, string $tenant)
+    {
+
+        $tenantId = resolveTenantId($tenant); // あなたの helper をそのまま利用
+
+         $v = $req->validate([
+            'lawyer_id'      => ['required','integer'],
+//            'client_name'    => ['required','string','max:255'],
+//            'client_email'   => ['nullable','email'],
+//            'start_at'       => ['required','date'], // ← フロントは start_at で送っています
+//            'visitor_id'     => ['nullable'],
+//            'purpose_title'  => ['nullable','string'],
+//            'purpose_detail' => ['nullable','string'],
+
+        // 必要なら先生の所属や空き枠チェックをここで
+        // ...
+         ]);
+        $ap = Appointment::create([
+            'tenant_id'       => $tenantId,
+            'lawyer_user_id'  => $v['lawyer_id'],     // 例: カラムが lawyer_user_id の場合
+            // 'lawyer_id'    => $v['lawyer_id'],     // 例: カラムが lawyer_id の場合はこちらに変更
+            'client_name'     => $v['client_name'],
+            'client_email'    => $v['client_email'] ?? null,
+            'starts_at'       => Carbon::parse($v['start_at']), // 例: カラムが starts_at の場合
+            // 'start_at'     => Carbon::parse($v['start_at']), // 例: カラムが start_at の場合はこちら
+            'status'          => 'booked',
+        ]);
+
+        // ひとまずダミーURLでOK（後でLiveKit等に置き換え）
+        return response()->json([
+            'appointmentId' => (string)$ap->id,
+            'clientJoinPath'=> "/wait?aid={$ap->id}",
+            'hostJoinPath'  => "/host?aid={$ap->id}",
+        ]);
+    }
+
+    public function storeFromTenantPrefixed(array $data)
+    {
+        // $data['tenant_id'] はルート側で注入済み
+        // 既存の store() のバリデーション/保存処理を流用
+        $req = new \Illuminate\Http\Request($data);
+        return $this->store($req); // 既存の store(Request $request) を再利用
+    }
+
+    public function myByVisitor(\Illuminate\Http\Request $req, \App\Models\Tenant $tenant)
+    {
+        $vid = $req->query('visitor_id');
+        if (!$vid) return response()->json([]);
+        $rows = \App\Models\Appointment::where('tenant_id',$tenant->id)
+            ->where('visitor_id',$vid)->orderByDesc('starts_at')->limit(1)->get();
+        return response()->json($rows);
+    }
+
+    public function myForTenant(Request $req, string $tenant) {
+        $tenantId  = resolveTenantId($tenant);
+        $visitorId = $req->query('visitor_id');
+        abort_unless($visitorId, 400, 'visitor_id is required');
+
+        return \App\Models\Appointment::query()
+            ->where('tenant_id', $tenantId)
+            ->where('visitor_id', $visitorId)
+            ->latest('id')->take(1)->get();
+    }
+
+    public function storeForTenant(Request $req, string $tenant) {
+
+        $tenantId = resolveTenantId($tenant);
+        $lawyerId = (int) $req->input('lawyer_id', 1);
+        $startIso = $req->input('start_at', now()->addMinutes(30)->toISOString());
+        $payload = [
+            'tenant_id'       => $tenantId,
+            'lawyer_user_id'  => $lawyerId,
+            'client_user_id'  => null,                      // 使っていないなら null 可（DBが許せば）
+            'client_name'     => $req->input('client_name', 'Guest'),
+            'client_email'    => $req->input('client_email'),
+            'client_phone'    => $req->input('client_phone'),
+            'starts_at'       => Carbon::parse($startIso),
+            'ends_at'         => Carbon::parse($startIso)->addMinutes(30),
+            'status'          => 'booked',
+            'price_jpy'       => 0,
+            'room_name'       => 'room_'.Str::lower(Str::random(10)),
+            'visitor_id'      => (string) $req->input('visitor_id', 'public'),
+            'purpose_title'   => $req->input('purpose_title', 'オンライン相談'),
+            'purpose_detail'  => $req->input('purpose_detail'),
+        ];
+
+//        $data = $req->validate([
+////            'lawyer_id'      => 'required|integer',
+////            'client_name'    => 'required|string|max:100',
+////            'client_email'   => 'nullable|email',
+////            'client_phone'   => 'nullable|string|max:50',
+////            'start_at'       => 'required|date',
+////            'visitor_id'     => 'required|string|max:64',
+////            'purpose_title'  => 'required|string|max:200',
+////            'purpose_detail' => 'nullable|string',
+//        ]);
+//        $data['tenant_id'] = $tenantId;
+
+        // ここで空き枠チェック → 競合なら 409 & suggested_start_at を返す
+        // …
+
+//        $a = \App\Models\Appointment::create($payload);
+        $ap = \App\Models\Appointment::create([
+            'tenant_id'       => $tenantId,
+            'lawyer_user_id'  => $lawyerId,
+            'client_user_id'  => null,
+            'client_name'     => $req->input('client_name', 'Guest'),
+            'client_email'    => $req->input('client_email'),
+            'client_phone'    => $req->input('client_phone'),
+            'starts_at'       => \Carbon\Carbon::parse($startIso),
+            'ends_at'         => \Carbon\Carbon::parse($startIso)->addMinutes(30),
+            'status'          => 'booked',
+            'price_jpy'       => 0,
+            'room_name'       => 'room_'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(10)),
+            'visitor_id'      => (string) $req->input('visitor_id', 'public'),
+            'purpose_title'   => $req->input('purpose_title', 'オンライン相談'),
+            'purpose_detail'  => $req->input('purpose_detail'),
+        ]);
+        // ★ ゲスト用 ticket（sub は room_name）
+        $jwt = \Firebase\JWT\JWT::encode(
+            ['sub' => $ap->room_name, 'exp' => time() + 1800],
+            env('TICKET_SECRET', 'changeme'),
+            'HS256'
+        );
+
+        return response()->json([
+            'appointmentId' => (string)$ap->id,
+            // ★ wait は ticket を使う（Wait ページの期待値）
+            'clientJoinPath'=> "/wait?ticket={$jwt}",
+            // ★ host は aid と room を付ける（Host ページでそのまま join できる）
+            'hostJoinPath'  => "/host?aid={$ap->id}&room={$ap->room_name}",
+        ], 201);
+//        return response()->json([
+//            'appointmentId' => $a->id,
+//            'clientJoinPath'=> "/wait?aid={$a->id}",
+//            'hostJoinPath'  => "/host?aid={$a->id}",
+//        ], 201);
     }
 }

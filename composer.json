@@ -1,8 +1,16 @@
 {
-    "require": {
-        "laravel/sanctum": "^4.2"
+  "require": {
+    "laravel/sanctum": "^4.2"
+  },
+  "require-dev": {
+    "laravel/breeze": "^2.3"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
     },
-    "require-dev": {
-        "laravel/breeze": "^2.3"
-    }
+    "files": [
+      "app/helpers.php"
+    ]
+  }
 }

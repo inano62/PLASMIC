@@ -1,7 +1,7 @@
 // pages/site/Render.tsx
 import { useParams } from "react-router-dom";
 import { loadSite } from "../../lib/site/storage";
-import type { Block, SiteData } from "../../lib/site/ types.ts";
+import type { Block } from "../../lib/site/ types.ts";
 
 function BlockView({ b }: { b: Block }) {
     switch (b.type) {

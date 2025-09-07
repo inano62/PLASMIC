@@ -1,1 +1,0 @@
-hakuhodo-survey-admin

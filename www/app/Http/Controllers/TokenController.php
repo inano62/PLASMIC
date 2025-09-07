@@ -12,36 +12,33 @@ use Illuminate\Support\Str;
 class TokenController extends Controller
 {
     /***
-     * ガチの本番用のもの
+     *  開発用: LiveKitのダミーJWTを返す（roomは必須）
      */
     public function exchange(Request $r) {
-        $role = $r->input('role'); // 'host' | 'guest'
-        $code = $r->input('code');
+        $room = $r->input('room', 'test-room');
+        $identity = $r->input('identity', 'user-'.bin2hex(random_bytes(3)));
 
-        $col = $role === 'host' ? 'host_code' : 'guest_code';
-        $row = Reservation::where($col, $code)->first();
+        $apiKey    = env('LIVEKIT_API_KEY', 'devkey');
+        $apiSecret = env('LIVEKIT_API_SECRET', 'devsecret');
+        $url       = env('LIVEKIT_URL'); // 無ければフロントのデフォルトを利用
 
-        if (!$row) return response()->json(['error'=>'invalid_code'], 403);
-        if ($row->status !== 'paid') return response()->json(['error'=>'payment_required'], 402);
-
-        $identity = $role.'_'.substr($code, -6);
-
-        $claims = [
-            'iss'   => env('LIVEKIT_API_KEY'),
+        $payload = [
+            'iss'   => $apiKey,
             'sub'   => $identity,
-            'name'  => $identity,
-            'nbf'   => time()-30,
-            'exp'   => time()+3600,
-            'video' => ['roomJoin'=>true, 'room'=>$row->room_name, 'canPublish'=>true, 'canSubscribe'=>true],
+            'iat'   => time(),
+            'exp'   => time() + 3600,
+            'video' => [
+                'roomJoin'     => true,
+                'room'         => $room,
+                'canPublish'   => true,
+                'canSubscribe' => true,
+            ],
         ];
-        $jwt = JWT::encode($claims, env('LIVEKIT_API_SECRET'), 'HS256');
 
-        return response()->json([
-            'token'      => $jwt,
-            'identity'   => $identity,
-            'room'       => $row->room_name,
-            'livekit_url'=> env('LIVEKIT_HOST'),
-        ]);
+        $jwt = JWT::encode($payload, $apiSecret, 'HS256');
+
+        return response()->json(['token'=>$jwt, 'url'=>$url]); // 200
+
     }
 
     public function devToken(Request $r) {

@@ -45,4 +45,14 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+    public function appointmentsAsClient(){ return $this->hasMany(Appointment::class, 'client_user_id'); }
+    public function appointmentsAsLawyer(){ return $this->hasMany(Appointment::class, 'lawyer_user_id'); }
+
+    // app/Models/User.php
+    public function tenants()
+    {
+        return $this->belongsToMany(Tenant::class, 'tenant_users')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
 }

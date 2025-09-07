@@ -4,7 +4,7 @@ import {createBrowserRouter, RouterProvider, Navigate, Outlet} from "react-route
 
 import SiteLayout from "./layouts/SiteLayout";
 import Home from "./pages/PlasmicLanding";
-import Reserve from "./pages/Reserve";
+// import Reserve from "./pages/Reserve";
 import Join from "./pages/Join";
 import Wait from "./pages/Wait";
 import Host from "./pages/Host";
@@ -16,6 +16,7 @@ import AdminDashboard from "./pages/admin/Dashboard";  // ← 既存/新規ど�
 import AdminCharts from "./pages/admin/Charts";        // ← 新規（任意）
 import AdminTables from "./pages/admin/Tables";        // ← 新規（任意）
 import AdminSiteBuilder from "./pages/admin/site/Builder.tsx"
+import Reserve from "./pages/PublicReserve";
 import { ADMIN_TOKEN_KEY } from "./lib/auth";
 // main.tsx （上からこの順で）
 import "bootstrap/dist/css/bootstrap.min.css";      // ★ これを追加（最優先）
@@ -23,7 +24,8 @@ import "@fortawesome/fontawesome-free/css/all.min.css"; // 使っているなら
 import "./styles/sb-admin.css";                     // SB Admin の上書き
 import "./styles/hide-local.css";
 import "./index.css";                               // Tailwind 等の自前CSS
-import "bootstrap";                                 // JS（collapse 等）
+import "bootstrap";
+import ReservePage from "./pages/ReservePage.tsx";                                 // JS（collapse 等）
 
 
 
@@ -39,6 +41,8 @@ const router = createBrowserRouter([
         children: [
             { index: true, element: <Home /> },
             { path: "reserve", element: <Reserve /> },
+            { path: ":tenant/reserve", element: <ReservePage /> },
+
             { path: "wait", element: <Wait /> },
             { path: "host", element: <Host /> },
             { path: "join", element: <Join /> },

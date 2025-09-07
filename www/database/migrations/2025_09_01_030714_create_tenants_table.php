@@ -14,7 +14,7 @@ return new class extends Migration
             $t->string('display_name');
             $t->string('stripe_customer_id')->nullable();
             $t->string('stripe_connect_id')->nullable();
-            $t->string('plan')->nullable(); // basic/pro/site
+            $t->string('plan')->default('pro');
             $t->timestamps();
         });
     }

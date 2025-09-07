@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { API } from "../lib/api";
+import  API  from "../lib/api";
 
 type S = { token?: string; url?: string; err?: string };
 export default function Host() {

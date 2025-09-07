@@ -1,5 +1,6 @@
 // src/components/admin/IntakePanel.tsx
 import { useState } from "react";
+import {API} from "../../lib/api.ts";
 
 type Msg = { id:number; from:"client"|"admin"|"system"; text:string; at:string };
 type Inquiry = {
@@ -13,9 +14,7 @@ const templates = {
     decline: "恐れ入りますが、本件は弁護士の専門領域です。当事務所では対応できません。弁護士会の法律相談等をご検討ください。",
 };
 
-export default function IntakePanel({
-                                        onApprove,
-                                    }: { onApprove?: (inq: Inquiry) => void }) {
+export default function IntakePanel() {
     const [inq, setInq] = useState<Inquiry>({
         id: 1,
         name: "田中 太郎",
@@ -34,15 +33,23 @@ export default function IntakePanel({
         add({ id: Date.now(), from, text, at: new Date().toISOString() });
     };
 
-    const approve = () => {
-        setInq((s) => ({ ...s, status: "approved" }));
-        send("面談にお進みいただけます。予約リンクをお送りします。", "system");
-        onApprove?.({ ...inq, status: "approved" });
-    };
     const decline = () => {
         setInq((s) => ({ ...s, status: "declined" }));
         send(templates.decline, "admin");
     };
+// 上の const approve = () => {...} は削除
+    const [invite, setInvite] = useState<{host:string;guest:string}|null>(null);
+
+    async function approve() {
+        setInq(s=>({...s,status:"approved"}));
+        const cu = await API.post("/clients/upsert",{name: inq.name, email: inq.email}).then(r=>r.json());
+        const res = await API.post("/appointments/instant",{
+            tenant_id: 1, lawyer_user_id: 1, client_user_id: cu.user_id
+        }).then(r=>r.json());
+        setInvite({ host: res.hostJoinPath, guest: res.clientJoinPath });
+        send("面談にお進みいただけます。招待リンクを発行しました。","system");
+    }
+
 
     return (
         <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -80,6 +87,13 @@ export default function IntakePanel({
             <div className="d-flex gap-2">
                 <button className="btn btn-success" disabled={inq.status==="approved"} onClick={approve}>面談へ進める</button>
                 <a className="btn btn-outline-primary" href={`/host?aid=${inq.id}`} target="_blank" rel="noreferrer">今すぐビデオ</a>
+                {invite && (
+                    <div className="alert alert-info mt-2">
+                        <div>ホスト用: <a href={invite.host} target="_blank">{invite.host}</a></div>
+                        <div>ゲスト用: <a href={invite.guest} target="_blank">{invite.guest}</a></div>
+                    </div>
+                )}
+
             </div>
         </div>
     );
