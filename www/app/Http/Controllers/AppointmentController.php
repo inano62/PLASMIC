@@ -43,13 +43,14 @@ class AppointmentController extends Controller
             }
         }
 
-        // aid 指定
-        $res = Reservation::find($aid);
-        if (!$res || empty($res->room_name)) {
-            return response()->json(['message' => 'invalid aid'], Response::HTTP_NOT_FOUND);
+        // aid 指定：appointments から room_name を取り出す
+        if ($aid) {
+            $a = \App\Models\Appointment::find($aid);
+            if (!$a || empty($a->room_name)) {
+                return response()->json(['message' => 'invalid aid'], 404);
+            }
+            return response()->json(['room' => $a->room_name]);
         }
-
-        return response()->json(['room' => $res->room_name]);
     }
 
 
@@ -144,7 +145,7 @@ class AppointmentController extends Controller
             'id'             => $a->id,
             'room'           => $a->room_name,
             'status'         => $a->status,
-            'clientJoinPath' => "/wait?ticket=$jwt",
+            'clientJoinPath' => "/wait?ticket={$a->id}",
             'hostJoinPath'   => "/host?aid={$a->id}",
         ], 201);
     }
@@ -275,7 +276,7 @@ class AppointmentController extends Controller
         // …
 
 //        $a = \App\Models\Appointment::create($payload);
-        $ap = \App\Models\Appointment::create([
+        $a = \App\Models\Appointment::create([
             'tenant_id'       => $tenantId,
             'lawyer_user_id'  => $lawyerId,
             'client_user_id'  => null,
@@ -292,18 +293,19 @@ class AppointmentController extends Controller
             'purpose_detail'  => $req->input('purpose_detail'),
         ]);
         // ★ ゲスト用 ticket（sub は room_name）
-        $jwt = \Firebase\JWT\JWT::encode(
-            ['sub' => $ap->room_name, 'exp' => time() + 1800],
-            env('TICKET_SECRET', 'changeme'),
+        $jwt = JWT::encode(
+            [
+                'sub'=>$a->room_name,
+                'exp'=>time()+1800
+            ],
+            env('TICKET_SECRET','changeme'),
             'HS256'
         );
 
         return response()->json([
-            'appointmentId' => (string)$ap->id,
-            // ★ wait は ticket を使う（Wait ページの期待値）
-            'clientJoinPath'=> "/wait?ticket={$jwt}",
-            // ★ host は aid と room を付ける（Host ページでそのまま join できる）
-            'hostJoinPath'  => "/host?aid={$ap->id}&room={$ap->room_name}",
+            'appointmentId' => (string)$a->id,
+            'clientJoinPath'=> "/wait?room=$a->room_name",          // ← 統一
+            'hostJoinPath'  => "/host?aid={$a->id}&room={$a->room_name}",
         ], 201);
 //        return response()->json([
 //            'appointmentId' => $a->id,

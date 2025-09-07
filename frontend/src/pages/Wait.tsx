@@ -17,21 +17,24 @@ export default function Wait() {
 
                 if (!room) {
                     const ticket = qs.get("ticket");
-                    if (!ticket) throw new Error("room または ticket が必要です");
-                    // ここは /api/wait/resolve に到達する
-                    const v = await API.getJson<{ room: string }>(`/wait/resolve?ticket=${encodeURIComponent(ticket)}`);
+                    const aid = qs.get("aid");
+                    let url = "";
+                    if (ticket) url = `/wait/resolve?ticket=${encodeURIComponent(ticket)}`;
+                    else if (aid) url = `/wait/resolve?aid=${encodeURIComponent(aid)}`;
+                    else throw new Error("room または ticket が必要です");
+
+                    const vres = await API.get(url);
+                    if (!vres.ok) throw new Error("ticket/aid の解決に失敗しました");
+                    const v = await vres.json();
                     room = v.room;
                 }
 
                 const identity = "guest-" + crypto.randomUUID();
+                const tres = await API.post("/dev/token", { room, identity });
+                if (!tres.ok) throw new Error("トークン取得に失敗しました");
+                const t = await tres.json();
+                setState({ room, token: t.token, url: t.url });
 
-                // ✅ JSON を直接返す postJson を使う
-                const { token, url } = await API.postJson<{ token: string; url?: string }>(
-                    "/dev/token",
-                    { room, identity }
-                );
-
-                setState({ room, token, url });
             } catch (e: any) {
                 setState({ err: e.message || String(e) });
             }

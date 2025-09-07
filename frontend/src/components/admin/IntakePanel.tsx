@@ -1,6 +1,6 @@
 // src/components/admin/IntakePanel.tsx
 import { useState } from "react";
-import {API} from "../../lib/api.ts";
+import API from "../../lib/api.ts";
 
 type Msg = { id:number; from:"client"|"admin"|"system"; text:string; at:string };
 type Inquiry = {
