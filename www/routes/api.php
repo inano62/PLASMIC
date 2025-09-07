@@ -22,6 +22,12 @@ Route::prefix('public')->group(function () {
     Route::get('/tenants', [\App\Http\Controllers\PublicController::class, 'tenants']);
     Route::get('/tenants/{id}/pros', [PublicController::class, 'pros']);       // ← 先生一覧
     Route::get('/tenants/{id}/slots', [TimeslotController::class, 'listOpen']); // ← 空き枠
+// routes/api.php
+    Route::get('/tenants/{tenant}/slots', [\App\Http\Controllers\AppointmentController::class, 'publicSlots']);
+    // routes/api.php
+    Route::get('/tenants/resolve', [\App\Http\Controllers\PublicController::class, 'resolveTenant']);
+
+
 });
 // tenants 配下の疎通テスト用 2 ルート
 Route::prefix('tenants/{tenant}')->group(function () {
@@ -33,17 +39,7 @@ Route::prefix('tenants/{tenant}')->group(function () {
 
     // 予約作成（tenant_id をサーバ側で付与）
     Route::match(['GET','POST'],'/appointments', [AppointmentController::class, 'storeForTenant']);
-    // ★ デバッグ用：GET/POST どちらでもここに落として dd する
-//    Route::match(['GET','POST'], '/appointments', function (Request $req, string|int $tenant) {
-//        dd([
-//            'tenant'  => $tenant,
-//            'method'  => $req->method(),
-//            'all'     => $req->all(),
-//            'query'   => $req->query(),
-//            'raw'     => $req->getContent(),
-//            'headers' => $req->headers->all(),
-//        ]);
-//    });
+
 });
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 Route::get('/public/tenants/{id}/pros', [PublicController::class, 'pros']);

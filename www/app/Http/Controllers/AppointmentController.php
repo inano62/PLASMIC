@@ -15,7 +15,83 @@ use App\Models\Reservation;   // 使っていれば残す
 
 class AppointmentController extends Controller
 {
+    /**
+     * 指定テナント・先生の「空き枠」を返す
+     * 既存予約（booked/pending とみなす）と重なる枠は除外
+     *
+     * クエリ:
+     *   lawyer_id (必須) … 対象の先生
+     *   days      (任意) … 何日分返すか（既定5, 最大31）
+     *   step      (任意) … 枠の刻み分（既定30）
+     *   duration  (任意) … 1枠の長さ分（既定30）
+     *   open      (任意) … 営業開始 "HH:MM"（既定 "09:00"）
+     *   close     (任意) … 営業終了 "HH:MM"（既定 "17:00"）
+     *
+     * 返却:
+     *   [{ date: "YYYY-MM-DD", slots: [ISO8601, ...] }, ...]
+     */
+    public function publicSlots(Request $r, int $tenant)
+    {
+        $lawyerId = (int) $r->query('lawyer_id');
+        abort_unless($lawyerId, 400, 'lawyer_id is required');
 
+        $days     = min((int) $r->query('days', 5), 31);
+        $step     = (int) $r->query('step', 30);
+        $duration = (int) $r->query('duration', 30);
+        $openStr  = $r->query('open',  '09:00');
+        $closeStr = $r->query('close', '17:00');
+
+        $now   = now(); // app.timezone
+        $out   = [];
+
+        for ($i = 0; $i < $days; $i++) {
+            $day       = $now->copy()->startOfDay()->addDays($i);
+            $dayStart  = $day->copy()->setTimeFromTimeString($openStr);
+            $dayEnd    = $day->copy()->setTimeFromTimeString($closeStr);
+
+            // その日の予約を取得（重なり検出用に starts/ends を取得）
+            $apps = Appointment::query()
+                ->where('tenant_id', $tenant)
+                ->where('lawyer_user_id', $lawyerId)
+                ->whereIn('status', ['booked','pending']) // pending も塞ぐならここに含める
+                // 端がはみ出す予約も拾いたいので範囲に少し余白を付ける
+                ->where(function ($q) use ($dayStart, $dayEnd) {
+                    $q->whereBetween('starts_at', [$dayStart->copy()->subHour(), $dayEnd->copy()->addHour()])
+                        ->orWhereBetween('ends_at',   [$dayStart->copy()->subHour(), $dayEnd->copy()->addHour()])
+                        ->orWhere(function ($q2) use ($dayStart, $dayEnd) {
+                            // 予約がこの日の全体を覆う場合
+                            $q2->where('starts_at', '<=', $dayStart)
+                                ->where('ends_at',   '>=', $dayEnd);
+                        });
+                })
+                ->get(['starts_at','ends_at']);
+
+            $slots = [];
+            for ($t = $dayStart->copy(); $t->lt($dayEnd); $t->addMinutes($step)) {
+                $s = $t->copy();
+                $e = $t->copy()->addMinutes($duration);
+
+                // 過去の枠は非表示（数分のバッファ）
+                if ($s->lt($now->copy()->addMinutes(5))) continue;
+
+                // どれかの予約と重なっていれば除外
+                $overlap = $apps->contains(function ($ap) use ($s, $e) {
+                    // [s,e) と [ap.start, ap.end) のオーバーラップ判定
+                    return $s->lt($ap->ends_at) && $e->gt($ap->starts_at);
+                });
+                if (!$overlap) {
+                    $slots[] = $s->toIso8601String(); // フロントは ISO で受ける想定
+                }
+            }
+
+            $out[] = [
+                'date'  => $day->format('Y-m-d'),
+                'slots' => $slots,
+            ];
+        }
+
+        return response()->json($out);
+    }
     public function resolve(Request $req)
     {
         $aid    = $req->query('aid');
@@ -275,7 +351,13 @@ class AppointmentController extends Controller
         // ここで空き枠チェック → 競合なら 409 & suggested_start_at を返す
         // …
 
-//        $a = \App\Models\Appointment::create($payload);
+        $startIso = $req->input('start_at');             // ISO8601が来る想定
+        abort_unless($startIso, 422, 'start_at is required');
+
+// JSTに寄せて保存したいなら setTimezone を付ける
+        $starts = \Carbon\Carbon::parse($startIso)->setTimezone(config('app.timezone')); // Asia/Tokyo
+        $ends   = (clone $starts)->addMinutes(30);
+
         $a = \App\Models\Appointment::create([
             'tenant_id'       => $tenantId,
             'lawyer_user_id'  => $lawyerId,
@@ -283,8 +365,8 @@ class AppointmentController extends Controller
             'client_name'     => $req->input('client_name', 'Guest'),
             'client_email'    => $req->input('client_email'),
             'client_phone'    => $req->input('client_phone'),
-            'starts_at'       => \Carbon\Carbon::parse($startIso),
-            'ends_at'         => \Carbon\Carbon::parse($startIso)->addMinutes(30),
+            'starts_at'       => $starts,
+            'ends_at'         => $ends,
             'status'          => 'booked',
             'price_jpy'       => 0,
             'room_name'       => 'room_'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(10)),
@@ -292,6 +374,8 @@ class AppointmentController extends Controller
             'purpose_title'   => $req->input('purpose_title', 'オンライン相談'),
             'purpose_detail'  => $req->input('purpose_detail'),
         ]);
+// created_at / updated_at は書かない（Eloquentが自動で入れる）
+
         // ★ ゲスト用 ticket（sub は room_name）
         $jwt = JWT::encode(
             [

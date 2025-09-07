@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-
-type Tenant = { id: number; name: string };
+const API_BASE = "/api";
+type Tenant = {
+    display_name: string;
+    id: number;  };
 type Pro = { user_id: number; name: string };
 type SlotDay = { date: string; slots: string[] };
 
-async function jget<T>(url: string): Promise<T> {
-    const r = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!r.ok) {
-        const t = await r.text();
-        console.error("GET", url, r.status, t);
-        throw new Error(t);
-    }
-    return r.json();
+// ✅ GET 専用
+async function jget<T>(path: string): Promise<T> {
+    const r = await fetch(`${API_BASE}${path}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json() as Promise<T>;
 }
 
-async function jpost<T>(url: string, body: any): Promise<T> {
-    const r = await fetch(url, {
+// ✅ POST 専用
+async function jpost<T>(path: string, body: any): Promise<T> {
+    const r = await fetch(`${API_BASE}${path}`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -23,12 +26,8 @@ async function jpost<T>(url: string, body: any): Promise<T> {
         },
         body: JSON.stringify(body),
     });
-    if (!r.ok) {
-        const t = await r.text();
-        console.error("POST", url, r.status, t);
-        throw new Error(t);
-    }
-    return r.json();
+    if (!r.ok) throw new Error(await r.text());
+    return r.json() as Promise<T>;
 }
 
 export default function PublicReserve() {
@@ -48,6 +47,35 @@ export default function PublicReserve() {
         starts_at?: string;
     } | null>(null);
 
+    useEffect(() => {
+        (async () => {
+            const qs = new URLSearchParams(location.search);
+            const tParam = qs.get("tenant") ?? qs.get("tenant_id"); // どっちでもOK
+            const lParam = qs.get("lawyer_id");
+
+            if (tParam) {
+                if (/^\d+$/.test(tParam)) {
+                    setTenantId(Number(tParam));
+                } else {
+                    // slugのときは解決APIで id を取得
+                    try {
+                        const r = await jget<{ id: number; name: string }>(`/api/public/tenants/resolve?slug=${encodeURIComponent(tParam)}`);
+                        setTenantId(r.id);
+                    } catch {
+                        // 解決失敗時は未選択のまま
+                    }
+                }
+            }
+            if (lParam && /^\d+$/.test(lParam)) setLawyerId(Number(lParam));
+        })();
+    }, []);
+
+    // 選択可否（クエリで固定されたらロック）
+    const lockedTenant = (() => {
+        const qs = new URLSearchParams(location.search);
+        return !!(qs.get("tenant") ?? qs.get("tenant_id"));
+    })();
+
     // booleanに正規化
     const canSubmit = useMemo(
         () => !!tenantId && !!lawyerId && !!slot && !!name && /\S+@\S+/.test(email),
@@ -56,11 +84,10 @@ export default function PublicReserve() {
 
     // 先生一覧
     useEffect(() => {
-        jget<Tenant[]>("/api/public/tenants")
+        jget<Tenant[]>("/public/tenants")
             .then(setTenants)
             .catch(() => setTenants([]));
     }, []);
-
     // 所属の先生一覧
     useEffect(() => {
         if (!tenantId) {
@@ -68,7 +95,7 @@ export default function PublicReserve() {
             setLawyerId("");
             return;
         }
-        jget<Pro[]>(`/api/public/tenants/${tenantId}/pros`)
+        jget<Pro[]>(`/public/tenants/${tenantId}/pros`)
             .then(setPros)
             .catch(() => {
                 setPros([]);
@@ -83,7 +110,7 @@ export default function PublicReserve() {
             setSlot("");
             return;
         }
-        jget<SlotDay[]>(`/api/public/tenants/${tenantId}/slots?lawyer_id=${lawyerId}`)
+        jget<SlotDay[]>(`/public/tenants/${tenantId}/slots?lawyer_id=${lawyerId}`)
             .then(setDays)
             .catch(() => setDays([]));
     }, [tenantId, lawyerId]);
@@ -98,19 +125,22 @@ export default function PublicReserve() {
             setSubmitting(true);
 
             // 1) 顧客 upsert
-            const cu = await jpost<{ user_id: number; magic_url?: string }>(
-                "/api/clients/upsert",
+            const cu =
+                await jpost<{ user_id: number; magic_url?: string }>(
+                "/clients/upsert",
                 { name, email }
             );
 
             // 2) 予約作成（BookingForm と同じエンドポイント＆キー名）
-            const ap = await jpost<{ clientJoinPath: string; hostJoinPath: string }>(
-                `/api/tenants/${String(tenantId)}/appointments`,
+            const ap =
+                await jpost<{ clientJoinPath: string; hostJoinPath: string }>(
+                `/tenants/${String(tenantId)}/appointments`,
                 {
                     lawyer_id: Number(lawyerId),
                     client_name: name,
                     client_email: email,
                     start_at: new Date(slot).toISOString(), // ← サーバが start_at を期待
+                    // start_at: slot, // ← サーバが start_at を期待
                     visitor_id: String(cu.user_id ?? "public"),
                     purpose_title: "オンライン相談",
                     purpose_detail: "",
@@ -122,7 +152,7 @@ export default function PublicReserve() {
                 guest: ap.clientJoinPath,
                 starts_at: slot,
             });
-        } catch (e: any) {
+        } catch (e) {
             alert("予約に失敗しました");
             console.error(e);
         } finally {
@@ -147,7 +177,7 @@ export default function PublicReserve() {
                         <option value="">選択してください</option>
                         {tenants.map((t) => (
                             <option key={t.id} value={t.id}>
-                                {t.name}
+                                {t.display_name}
                             </option>
                         ))}
                     </select>
