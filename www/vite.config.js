@@ -7,5 +7,16 @@ export default defineConfig({
             input: ['resources/css/app.css', 'resources/js/app.js'],
             refresh: true,
         }),
+        react(),
     ],
+    server: {
+        port: 5176,
+        host: true,
+        proxy: {
+            '/api': {
+                target: 'http://localhost:8000', // ← Laravel (nginx) へ
+                changeOrigin: true,
+            },
+        },
+    },
 });

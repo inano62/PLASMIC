@@ -27,7 +27,7 @@ services:
     build: { context: ./frontend }
     container_name: next
     working_dir: /app
-    ports: [ "5177:5177" ]
+    ports: [ "5176:5176" ]
     volumes:
       - ./frontend:/app
       - /app/node_modules
