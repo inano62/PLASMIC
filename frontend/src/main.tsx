@@ -26,7 +26,7 @@ import "./styles/hide-local.css";
 import "./index.css";                               // Tailwind 等の自前CSS
 import "bootstrap";
 import ReservePage from "./pages/ReservePage.tsx";                                 // JS（collapse 等）
-
+import PublicSite from "./public/PublicSite";
 
 
 function RequireAdmin() {
@@ -42,7 +42,7 @@ const router = createBrowserRouter([
             { index: true, element: <Home /> },
             { path: "reserve", element: <Reserve /> },
             { path: ":tenant/reserve", element: <ReservePage /> },
-
+            { path: "/s/:slug/*", element: <PublicSite /> },
             { path: "wait", element: <Wait /> },
             { path: "host", element: <Host /> },
             { path: "join", element: <Join /> },

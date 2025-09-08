@@ -7,7 +7,7 @@ import Host from "./pages/Host";
 import Admin from "./pages/admin/Admin";
 import ReservePage from "./pages/ReservePage.tsx";
 import TenantLayout from "./layout/TenantLayout.tsx";
-
+import PublicSite from './public/PublicSite';
 function OldReserveRedirect() {
     const { tenant } = useParams();
     return <Navigate to={`/${tenant}/reserve`} replace />;
@@ -27,6 +27,6 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/host" element={<Host />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<div>404</div>} />
-
+        <Route path="/s/:slug/*" element={<PublicSite />} />
     </BrowserRouter>
 );
