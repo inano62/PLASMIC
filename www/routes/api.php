@@ -1,20 +1,43 @@
 <?php
 
-use App\Models\Appointment;
-use App\Models\Tenant;
-//use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\TokenController;
 use App\Http\Controllers\StripeController;
 use App\Http\Controllers\PublicController;
 use App\Http\Controllers\TimeslotController;
 use App\Http\Controllers\AppointmentController;
-use Livekit\AccessToken;
-use App\Http\Controllers\ClientController;
 use App\Http\Controllers\StripeWebhookController;
-use Illuminate\Http\Request;
 
 
+
+// routes/web.php or routes/api.php
+Route::middleware(['auth', 'can:site.build'])->group(function () {
+    Route::post('/pay/site-pro', [\App\Http\Controllers\BillingController::class,'siteProCheckout']);
+    Route::get('/admin/site', [\App\Http\Controllers\SiteController::class,'index']);
+    Route::post('/admin/site/publish', [\App\Http\Controllers\SiteController::class,'publish']);
+});
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/me', fn(\Illuminate\Http\Request $r) => $r->user());
+    Route::get('/sitebuilder/status', [SiteBuilderController::class, 'status']);
+    Route::post('/sitebuilder/checkout', [SiteBuilderController::class, 'checkout']);
+});
+Route::middleware('auth')->group(function () {
+    // 課金状況の問い合わせ（フロントのゲート用・JSON）
+    Route::get('/api/sitebuilder/status', [SiteBuilderController::class, 'status']);
+
+    // チェックアウト作成（Stripe セッション）
+    Route::post('/api/sitebuilder/checkout', [SiteBuilderController::class, 'checkout']);
+
+    // 決済戻り（success/cancel）
+    Route::get('/admin/site/thanks', [SiteBuilderController::class, 'thanks'])->name('site.thanks');
+    Route::get('/admin/site/pay',   [SiteController::class, 'paywall'])->name('site.paywall');
+
+    // ビルダー本体（**課金者のみ**）
+    Route::middleware('site.entitled')->group(function () {
+        Route::get('/admin/site', [SiteController::class, 'builder'])->name('site.builder');
+        Route::post('/admin/site/publish', [SiteController::class, 'publish']);
+    });
+});
 // テナント解決用（slug でも id でも受けられる）
 Route::get('/ping', fn() => ['ok' => true, 'time' => now()->toIso8601String()]);
 
@@ -50,7 +73,7 @@ Route::post('/clients/upsert', [\App\Http\Controllers\ClientController::class,'u
 Route::post('/reservations', [ReservationController::class, 'create']);    // 未払い
 Route::post('/pay/checkout/{id}', [StripeController::class, 'createCheckout']);
 Route::post('/stripe/webhook', [StripeController::class, 'webhook']);      // paid → appointment.booked
-
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 // 面談（リンク/チケット）
 Route::post('/appointments', [AppointmentController::class, 'store']); // 公開フォームからお客さんが使う
 Route::get('/appointments/{id}', [AppointmentController::class, 'show']);  // room/status

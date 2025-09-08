@@ -55,4 +55,12 @@ class User extends Authenticatable
             ->withPivot('role')
             ->withTimestamps();
     }
+    public function isAdmin(): bool  { return $this->role === 'admin'; }
+    public function isLawyer(): bool { return $this->role === 'lawyer'; }
+    public function canBuildSite(): bool
+    {
+        return $this->role === 'admin'
+            || ($this->role === 'lawyer' && $this->account_type === 'pro');
+    }
+    public function hasPro(): bool   { return $this->account_type === 'pro' || $this->isAdmin(); }
 }
