@@ -18,7 +18,10 @@ services:
     build: { context: "./docker/app/" }
     container_name: app
     working_dir: /var/www
-    volumes: [ "./www:/var/www" ]
+    volumes: [
+      "./www:/var/www" ,
+      "./tools/php-fpm-overrides.conf:/usr/local/etc/php-fpm.d/zz-overrides.conf:ro"
+    ]
     expose: [ "9000" ]
     networks: [ appnet ]
 

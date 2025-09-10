@@ -59,63 +59,79 @@ class SiteBuilderController extends Controller
 
         return redirect()->route('site.paywall')->with('error','未決済です');
     }
-    public function showSite(Site $site){
-        return $site->load('pages.blocks');
-    }
+    public function showSite(Site $site)
+    {
+        $pages = $site->pages()
+            ->orderBy('sort')
+            ->with(['blocks' => function ($q) {
+                $q->orderBy('sort')
+                    ->select('id','page_id','type','sort','data');
+            }])
+            ->get(['id','site_id','title','path','sort']);
 
-    public function updateSite(Request $r, Site $site){
-        $site->update($r->only('title','slug','meta'));
-        return $site->fresh('pages.blocks');
-    }
-
-    public function createPage(Request $r, Site $site){
-        $p = $site->pages()->create([
-            'title'=>$r->input('title','新しいページ'),
-            'path' =>$r->input('path','/'),
-            'sort' => ($site->pages()->max('sort') ?? 0) + 1,
+        return response()->json([
+            'site'  => $site->only(['id','title','slug','meta']),
+            'pages' => $pages,
         ]);
-        return $p->load('blocks');
     }
 
-    public function updatePage(Request $r, Page $page){
-        $page->update($r->only('title','path','sort'));
-        return $page->fresh('blocks');
+    public function updateSite(Request $r, Site $site)
+    {
+        $site->fill($r->only('title','slug','meta'));
+        $site->save();
+        return ['ok'=>true, 'site'=>$site->only('id','title','slug','meta')];
     }
 
-    public function createBlock(Request $r, Page $page){
-        $type = $r->input('type');
-        $defaults = [
-            'hero'     => ['kicker'=>'','title'=>'タイトル','subtitle'=>'サブタイトル','btnText'=>'はじめる','btnHref'=>'#'],
-            'features' => ['items'=>[['title'=>'特徴1','text'=>'説明'],['title'=>'特徴2','text'=>'説明']]],
-            'cta'      => ['text'=>'今すぐお問い合わせ','btnText'=>'問い合わせる','btnHref'=>'/contact'],
-        ];
+    public function createPage(Request $r, Site $site)
+    {
+        $next = (int)$site->pages()->max('sort') + 1;
+        $page = $site->pages()->create([
+            'title' => $r->input('title','Untitled'),
+            'path'  => $r->input('path','/'),
+            'sort'  => $next,
+        ]);
+        return ['ok'=>true, 'page'=>$page->only('id','title','path','sort')];
+    }
+
+    public function updatePage(Request $r, Page $page)
+    {
+        $page->fill($r->only('title','path','sort'));
+        $page->save();
+        return ['ok'=>true];
+    }
+
+    public function createBlock(Request $r, Page $page)
+    {
+        $next = (int)$page->blocks()->max('sort') + 1;
         $b = $page->blocks()->create([
-            'type'=>$type,
-            'data'=>$defaults[$type] ?? (object)[],
-            'sort'=>($page->blocks()->max('sort') ?? 0) + 1,
+            'type' => $r->string('type'),
+            'data' => $r->input('data', []),
+            'sort' => $next,
         ]);
-        return $b;
+        return ['ok'=>true, 'block'=>$b->only('id','type','sort','data')];
     }
 
-    public function updateBlock(Request $r, Block $block){
-        $block->update([
-            'type'=>$r->input('type',$block->type),
-            'data'=>$r->input('data',$block->data),
-            'sort'=>$r->input('sort',$block->sort),
-        ]);
-        return $block->fresh();
+    public function updateBlock(Request $r, Block $block)
+    {
+        if ($r->has('type')) $block->type = (string)$r->input('type');
+        if ($r->has('data')) $block->data = $r->input('data');
+        if ($r->has('sort')) $block->sort = (int)$r->input('sort');
+        $block->save();
+        return ['ok'=>true];
     }
 
-    public function reorderBlocks(Request $r, Page $page){
-        // { ids: [blockIdの配列] }
-        foreach($r->input('ids',[]) as $i=>$id){
-            Block::where('id',$id)->where('page_id',$page->id)->update(['sort'=>$i+1]);
+    public function reorderBlocks(Request $r, Page $page)
+    {
+        $ids = $r->input('ids', []);
+        foreach ($ids as $i => $id) {
+            Block::where('id', $id)->where('page_id', $page->id)->update(['sort'=>$i+1]);
         }
-        return $page->fresh('blocks');
+        return ['ok'=>true];
     }
 
-    public function destroyBlock(Block $block){
+    public function destroyBlock(Block $block)
+    {
         $block->delete();
-        return response()->noContent();
+        return ['ok'=>true];
     }
 }

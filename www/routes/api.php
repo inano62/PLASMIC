@@ -14,7 +14,6 @@ Route::get('/ping', fn() => ['ok'=>true, 'time'=>now()->toIso8601String()]);
 Route::prefix('public')->group(function () {
     Route::get('/sites/{slug}',       [PublicSiteApiController::class, 'site']);
     Route::get('/sites/{slug}/page',  [PublicSiteApiController::class, 'page']);
-
     Route::get('/tenants',            [PublicController::class, 'tenants']);
     Route::get('/tenants/resolve',    [PublicController::class, 'resolveTenant']);
     Route::get('/tenants/{tenant}/pros',  [PublicController::class, 'pros']);
@@ -38,7 +37,9 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
     Route::post  ('/pages/{page}/reorder', [SiteBuilderController::class, 'reorderBlocks']);
     Route::delete('/blocks/{block}',       [SiteBuilderController::class, 'destroyBlock']);
     Route::post  ('/sites/{site}/publish', [PublishController::class,     'publishSite']);
+    Route::get('/ping', fn() => response()->json(['ok'=>true]));
 });
+    Route::get('/_debug/sites/{site}', [\App\Http\Controllers\SiteBuilderController::class, 'showSite']);
 
 // ───── 面談/決済/etc ─────
 Route::post('/clients/upsert',        [ClientController::class,     'upsert'])->name('clients.upsert');
@@ -49,3 +50,11 @@ Route::post('/appointments',          [AppointmentController::class,'store']);
 Route::get ('/appointments/{id}',     [AppointmentController::class,'show']);
 Route::post('/appointments/{id}/ticket',[AppointmentController::class,'issueTicket']);
 Route::get ('/appointments/upcoming', [AppointmentController::class,'upcomi']);
+
+//// ───── 管理画面 ─────
+//Route::prefix('admin')->group(function () {
+//    Route::get ('/sites/{site}', [\App\Http\Controllers\SiteBuilderController::class, 'showSite']);
+//    Route::put ('/sites/{site}', [\App\Http\Controllers\SiteBuilderController::class, 'updateSite']);
+//    Route::post ('/sites/{site}/pages', [\App\Http\Controllers\SiteBuilderController::class, 'createPage']);
+//    Route::post ('/sites/{site}/publish', [\App\Http\Controllers\SiteBuilderController::class, 'publishSite']);
+//});
