@@ -7,6 +7,8 @@ use App\Http\Controllers\{
     StripeWebhookController, TokenController, ReservationController,
     StripeController, ClientController
 };
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/ping', fn() => ['ok'=>true, 'time'=>now()->toIso8601String()]);
 
@@ -29,18 +31,19 @@ Route::prefix('tenants/{tenant}')->group(function () {
 
 // ───── Builder 管理API（Sanctum） ─────
 Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
-    Route::get   ('/sites/{site}',         [SiteBuilderController::class, 'showSite']);
-    Route::put   ('/sites/{site}',         [SiteBuilderController::class, 'updateSite']);
-    Route::post  ('/sites/{site}/pages',   [SiteBuilderController::class, 'createPage']);
-    Route::put   ('/pages/{page}',         [SiteBuilderController::class, 'updatePage']);
-    Route::post  ('/pages/{page}/blocks',  [SiteBuilderController::class, 'createBlock']);
-    Route::post  ('/pages/{page}/reorder', [SiteBuilderController::class, 'reorderBlocks']);
-    Route::delete('/blocks/{block}',       [SiteBuilderController::class, 'destroyBlock']);
-    Route::post  ('/sites/{site}/publish', [PublishController::class,     'publishSite']);
-    Route::get('/ping', fn() => response()->json(['ok'=>true]));
+    Route::get   ('/sites/{id}',           [SiteBuilderController::class, 'show']);
+    Route::put   ('/sites/{id}',           [SiteBuilderController::class, 'update']);
+    Route::post  ('/sites/{id}/pages',     [SiteBuilderController::class, 'addPage']);
+    Route::post  ('/pages/{pageId}/blocks',[SiteBuilderController::class, 'addBlock']);
+    Route::post  ('/pages/{pageId}/reorder',[SiteBuilderController::class, 'reorder']);
+    Route::put   ('/blocks/{id}',          [SiteBuilderController::class, 'updateBlock']);
+    Route::delete('/blocks/{id}',          [SiteBuilderController::class, 'deleteBlock']);
+    Route::post  ('/sites/{id}/publish',   [SiteBuilderController::class, 'publish']);
 });
     Route::get('/_debug/sites/{site}', [\App\Http\Controllers\SiteBuilderController::class, 'showSite']);
-
+Route::middleware('auth:sanctum')->get('/whoami', fn() =>
+response()->json(['user' => auth()->user()?->only('id','name','email')])
+);
 // ───── 面談/決済/etc ─────
 Route::post('/clients/upsert',        [ClientController::class,     'upsert'])->name('clients.upsert');
 Route::post('/reservations',          [ReservationController::class,'create']);
@@ -51,10 +54,57 @@ Route::get ('/appointments/{id}',     [AppointmentController::class,'show']);
 Route::post('/appointments/{id}/ticket',[AppointmentController::class,'issueTicket']);
 Route::get ('/appointments/upcoming', [AppointmentController::class,'upcomi']);
 
-//// ───── 管理画面 ─────
-//Route::prefix('admin')->group(function () {
-//    Route::get ('/sites/{site}', [\App\Http\Controllers\SiteBuilderController::class, 'showSite']);
-//    Route::put ('/sites/{site}', [\App\Http\Controllers\SiteBuilderController::class, 'updateSite']);
-//    Route::post ('/sites/{site}/pages', [\App\Http\Controllers\SiteBuilderController::class, 'createPage']);
-//    Route::post ('/sites/{site}/publish', [\App\Http\Controllers\SiteBuilderController::class, 'publishSite']);
-//});
+
+Route::post('/auth/token', function (Request $r) {
+    $cred = $r->validate(['email'=>'required|email','password'=>'required']);
+    if (!Auth::attempt($cred)) {
+        return response()->json(['message'=>'Invalid credentials'], 401);
+    }
+    $user = $r->user();
+    $token = $user->createToken('admin')->plainTextToken;
+    return response()->json(['token'=>$token, 'user'=>['id'=>$user->id,'name'=>$user->name]]);
+});
+/**
+ * ① 管理ログイン（Sanctum トークン発行）
+ * React 側から email/password を送ると Bearer トークンを返します。
+ * このトークンを Authorization: Bearer xxx で付けて以降の /admin API を叩く。
+ */
+Route::post('/auth/token', function (Request $r) {
+    $cred = $r->validate(['email'=>'required|email', 'password'=>'required']);
+    if (!Auth::attempt($cred)) {
+        return response()->json(['message' => 'Invalid credentials'], 401);
+    }
+    /** @var \App\Models\User $user */
+    $user  = $r->user();
+    $token = $user->createToken('admin')->plainTextToken;
+
+    return response()->json([
+        'token' => $token,
+        'user'  => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email],
+    ]);
+});
+
+/**
+ * ② 管理API（Sanctum で保護）
+ * React の Builder.tsx が呼ぶパスに完全対応
+ */
+Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+    // サイト本体
+    Route::get   ('/sites/{site}',        [SiteBuilderController::class, 'showSite']);   // 期待: { site, pages:[{..., blocks:[]}] }
+    Route::put   ('/sites/{site}',        [SiteBuilderController::class, 'updateSite']); // body: {title, slug, meta}
+
+    // ページ作成・並べ替え
+    Route::post  ('/sites/{site}/pages',  [SiteBuilderController::class, 'createPage']); // body: {path, title}
+    Route::post  ('/pages/{page}/reorder',[SiteBuilderController::class, 'reorderBlocks']); // body: {ids:[blockId...]}
+
+    // ブロック CRUD
+    Route::post  ('/pages/{page}/blocks', [SiteBuilderController::class, 'createBlock']); // body: {type}
+    Route::put   ('/blocks/{block}',      [SiteBuilderController::class, 'updateBlock']); // body: {data, sort}
+    Route::delete('/blocks/{block}',      [SiteBuilderController::class, 'destroyBlock']);
+
+    // 公開
+    Route::post  ('/sites/{site}/publish',[PublishController::class, 'publishSite']);
+
+    // 必要なら追加
+    // Route::get('/appointments/upcoming', [AppointmentController::class, 'upcoming']);
+});

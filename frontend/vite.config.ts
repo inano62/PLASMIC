@@ -12,11 +12,12 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    host: true,   // Docker から受ける
-    port: 5176,        // ← docker-compose と一致させる
+      host: '0.0.0.0',
+      port: 5176,        // ← docker-compose と一致させる
+      strictPort: true,
     proxy:{
         '/api':{
-            target:'http://localhost:8000',
+            target: 'http://web',
             changeOrigin:true,
             secure:false,
             configure(proxy) {

@@ -13,10 +13,12 @@ export default defineConfig({
         port: 5176,
         host: true,
         proxy: {
-            '/api': {
-                target: 'http://localhost:8000', // ← Laravel (nginx) へ
-                changeOrigin: true,
-            },
+            '/api':     { target: 'http://web', changeOrigin: true },
+            '/sanctum': { target: 'http://web', changeOrigin: true },
+            '/login':   { target: 'http://web', changeOrigin: true },
+            '/logout':  { target: 'http://web', changeOrigin: true },
         },
     },
+    build: { outDir: '../public/dist', emptyOutDir: true },
+    resolve: { alias: { '@': '/src' } },
 });

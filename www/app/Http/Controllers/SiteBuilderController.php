@@ -1,137 +1,146 @@
 <?php
-// app/Http/Controllers/SiteBuilderController.php
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
-use Stripe\Stripe;
-use App\Models\{Site,Page,Block};
+use Illuminate\Support\Facades\DB;
+use App\Models\Site;
+use App\Models\Page;
+use App\Models\Block;
 
 class SiteBuilderController extends Controller
 {
-    public function status(Request $r)
+    /* =========================
+     *   ベース実装（旧API名）
+     * ========================= */
+
+    // GET /admin/sites/{id}
+    public function show($id)
     {
-        return ['entitled' => Gate::allows('site.build', $r->user())];
-    }
-
-    public function checkout(Request $r)
-    {
-        $u = $r->user();
-        Stripe::setApiKey(config('services.stripe.secret'));
-
-        $session = \Stripe\Checkout\Session::create([
-            'mode' => 'payment',
-            'line_items' => [[
-                // .env に価格IDを入れてください
-                'price' => env('STRIPE_PRICE_SITE_PRO'), // 例: price_XXXXXXXX
-                'quantity' => 1,
-            ]],
-            'customer' => $u->stripe_customer_id ?: null,
-            'customer_creation' => $u->stripe_customer_id ? 'always' : 'if_required',
-            'success_url' => url('/admin/site/thanks?session_id={CHECKOUT_SESSION_ID}'),
-            'cancel_url'  => url('/admin/site/pay?canceled=1'),
-            'metadata'    => ['user_id' => $u->id],
-        ]);
-
-        return ['url' => $session->url];
-    }
-
-    public function thanks(Request $r)
-    {
-        $sid = $r->query('session_id');
-        if (!$sid) {
-            return redirect()->route('site.paywall')->with('error','session_id がありません');
-        }
-
-        Stripe::setApiKey(config('services.stripe.secret'));
-        $sess = \Stripe\Checkout\Session::retrieve($sid);
-
-        if ($sess->payment_status === 'paid') {
-            $u = $r->user();
-            $u->account_type = 'pro';
-            if ($sess->customer && !$u->stripe_customer_id) {
-                $u->stripe_customer_id = $sess->customer;
-            }
-            $u->save();
-
-            return redirect()->route('site.builder');
-        }
-
-        return redirect()->route('site.paywall')->with('error','未決済です');
-    }
-    public function showSite(Site $site)
-    {
-        $pages = $site->pages()
+        $site  = Site::findOrFail($id);
+        $pages = Page::where('site_id', $id)
             ->orderBy('sort')
-            ->with(['blocks' => function ($q) {
-                $q->orderBy('sort')
-                    ->select('id','page_id','type','sort','data');
-            }])
-            ->get(['id','site_id','title','path','sort']);
+            ->with(['blocks' => function($q){ $q->orderBy('sort'); }])
+            ->get();
 
-        return response()->json([
-            'site'  => $site->only(['id','title','slug','meta']),
-            'pages' => $pages,
-        ]);
+        return response()->json(['site' => $site, 'pages' => $pages]);
     }
 
-    public function updateSite(Request $r, Site $site)
+    // PUT /admin/sites/{id}
+    public function update(Request $r, $id)
     {
-        $site->fill($r->only('title','slug','meta'));
+        $site = Site::findOrFail($id);
+        $site->title = $r->input('title', $site->title);
+        $site->slug  = $r->input('slug',  $site->slug);
+        $site->meta  = $r->input('meta',  $site->meta);
         $site->save();
-        return ['ok'=>true, 'site'=>$site->only('id','title','slug','meta')];
+        return response()->json(['ok' => true]);
     }
 
-    public function createPage(Request $r, Site $site)
+    // POST /admin/sites/{id}/publish
+    public function publish($id)
     {
-        $next = (int)$site->pages()->max('sort') + 1;
-        $page = $site->pages()->create([
-            'title' => $r->input('title','Untitled'),
-            'path'  => $r->input('path','/'),
-            'sort'  => $next,
-        ]);
-        return ['ok'=>true, 'page'=>$page->only('id','title','path','sort')];
+        $site = Site::findOrFail($id);
+        return response()->json(['slug' => $site->slug]);
     }
 
-    public function updatePage(Request $r, Page $page)
+    // POST /admin/sites/{id}/pages  {path,title}
+    public function addPage(Request $r, $id)
     {
-        $page->fill($r->only('title','path','sort'));
-        $page->save();
-        return ['ok'=>true];
+        $max = Page::where('site_id', $id)->max('sort') ?? 0;
+
+        $p = new Page();
+        $p->site_id = $id;
+        $p->title   = $r->input('title', 'Page');
+        $p->path    = $r->input('path',  '/');
+        $p->sort    = $max + 1;
+        $p->save();
+
+        return response()->json(['id' => $p->id]);
     }
 
-    public function createBlock(Request $r, Page $page)
+    // POST /admin/pages/{pageId}/blocks  {type,data?}
+    public function addBlock(Request $r, $pageId)
     {
-        $next = (int)$page->blocks()->max('sort') + 1;
-        $b = $page->blocks()->create([
-            'type' => $r->string('type'),
-            'data' => $r->input('data', []),
-            'sort' => $next,
-        ]);
-        return ['ok'=>true, 'block'=>$b->only('id','type','sort','data')];
+        $max = Block::where('page_id', $pageId)->max('sort') ?? 0;
+
+        $b = new Block();
+        $b->page_id = $pageId;
+        $b->type    = $r->input('type', 'hero');
+        $b->data    = $r->input('data', []);
+        $b->sort    = $max + 1;
+        $b->save();
+
+        return response()->json(['id' => $b->id]);
     }
 
-    public function updateBlock(Request $r, Block $block)
+    // PUT /admin/blocks/{id}  {data,sort?}
+    public function updateBlock(Request $r, $id)
     {
-        if ($r->has('type')) $block->type = (string)$r->input('type');
-        if ($r->has('data')) $block->data = $r->input('data');
-        if ($r->has('sort')) $block->sort = (int)$r->input('sort');
-        $block->save();
-        return ['ok'=>true];
+        $b = Block::findOrFail($id);
+        if ($r->has('data')) $b->data = $r->input('data');
+        if ($r->has('sort')) $b->sort = (int)$r->input('sort');
+        $b->save();
+        return response()->json(['ok' => true]);
     }
 
-    public function reorderBlocks(Request $r, Page $page)
+    // POST /admin/pages/{pageId}/reorder  {ids:[...]}
+    public function reorder(Request $r, $pageId)
     {
         $ids = $r->input('ids', []);
-        foreach ($ids as $i => $id) {
-            Block::where('id', $id)->where('page_id', $page->id)->update(['sort'=>$i+1]);
-        }
-        return ['ok'=>true];
+        DB::transaction(function() use ($ids) {
+            foreach ($ids as $i => $id) {
+                Block::where('id', $id)->update(['sort' => $i + 1]);
+            }
+        });
+        return response()->json(['ok' => true]);
     }
 
-    public function destroyBlock(Block $block)
+    // DELETE /admin/blocks/{id}
+    public function deleteBlock($id)
     {
-        $block->delete();
-        return ['ok'=>true];
+        Block::where('id', $id)->delete();
+        return response()->json(['ok' => true]);
+    }
+
+    /* ======================================
+     *   ラッパー（新API名 → 旧API名へ委譲）
+     *   ※ルートモデル束縛でも数値でもOK
+     * ====================================== */
+
+    public function showSite($site)
+    {
+        $id = is_object($site) ? $site->id : $site;
+        return $this->show($id);
+    }
+
+    public function updateSite(Request $r, $site)
+    {
+        $id = is_object($site) ? $site->id : $site;
+        return $this->update($r, $id);
+    }
+
+    public function createPage(Request $r, $site)
+    {
+        $id = is_object($site) ? $site->id : $site;
+        return $this->addPage($r, $id);
+    }
+
+    public function createBlock(Request $r, $page)
+    {
+        $pageId = is_object($page) ? $page->id : $page;
+        return $this->addBlock($r, $pageId);
+    }
+
+    public function reorderBlocks(Request $r, $page)
+    {
+        $pageId = is_object($page) ? $page->id : $page;
+        return $this->reorder($r, $pageId);
+    }
+
+    public function destroyBlock($block)
+    {
+        $id = is_object($block) ? $block->id : $block;
+        return $this->deleteBlock($id);
     }
 }

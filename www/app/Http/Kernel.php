@@ -10,5 +10,9 @@ class Kernel extends HttpKernel
     protected $middlewareAliases = [
         // 既存のエイリアス群...
         'site.entitled' => \App\Http\Middleware\EnsureSiteBuilderEntitled::class,
+        'api' => [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        ],
     ];
 }

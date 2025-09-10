@@ -1,10 +1,10 @@
 <?php
-// app/Models/Block.php
+// app/Models/Site.php
 namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
+// app/Models/Block.php
 class Block extends Model {
-    protected $fillable = ['page_id','type','data','sort'];
-    protected $casts = ['data'=>'array'];
-    public function page(){ return $this->belongsTo(Page::class); }
+    protected $fillable=['page_id','type','sort','data'];
+    protected $casts=['data'=>'array'];
 }
