@@ -17,14 +17,25 @@ class SiteBuilderController extends Controller
     // GET /admin/sites/{id}
     public function show($id)
     {
-        $site  = Site::findOrFail($id);
-        $pages = Page::where('site_id', $id)
+        $site = \App\Models\Site::firstOrCreate(
+            ['id' => $id],
+            ['title'=>'Demo Site','slug'=>'demo','meta'=>['theme'=>'default']]
+        );
+
+        \App\Models\Page::firstOrCreate(
+            ['site_id'=>$site->id,'path'=>'/'],
+            ['title'=>'Home','sort'=>1]
+        );
+
+        $pages = \App\Models\Page::where('site_id',$site->id)
             ->orderBy('sort')
-            ->with(['blocks' => function($q){ $q->orderBy('sort'); }])
+            ->with(['blocks'=>fn($q)=>$q->orderBy('sort')])
             ->get();
 
-        return response()->json(['site' => $site, 'pages' => $pages]);
+        return response()->json(['site'=>$site,'pages'=>$pages]);
+
     }
+
 
     // PUT /admin/sites/{id}
     public function update(Request $r, $id)

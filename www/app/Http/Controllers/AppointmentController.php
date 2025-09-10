@@ -147,13 +147,30 @@ class AppointmentController extends Controller
     }
 
     public function show(int $id) {
-        $a = Appointment::findOrFail($id);
-        return response()->json([
-            'id'        => $a->id,
-            'room'      => $a->room_name,
-            'starts_at' => $a->starts_at,
-            'status'    => $a->status,
-        ]);
+        $site = Site::find($id);
+        if (!$site) {
+            $site = new Site();
+            // $site->id = $id; // ← SQLite の AUTOINCREMENT を尊重したいならセットしないでOK
+            $site->title = 'Demo Site';
+            $site->slug  = 'demo';
+            $site->meta  = ['theme' => 'default'];
+            $site->save();
+
+            // Home ページを1枚作る
+            $p = new Page();
+            $p->site_id = $site->id;
+            $p->title   = 'Home';
+            $p->path    = '/';
+            $p->sort    = 1;
+            $p->save();
+        }
+
+        $pages = Page::where('site_id', $site->id)
+            ->orderBy('sort')
+            ->with(['blocks' => function($q){ $q->orderBy('sort'); }])
+            ->get();
+
+        return response()->json(['site' => $site, 'pages' => $pages]);
     }
 
     // 直近60分（士業ダッシュボード）
@@ -397,4 +414,5 @@ class AppointmentController extends Controller
 //            'hostJoinPath'  => "/host?aid={$a->id}",
 //        ], 201);
     }
+
 }

@@ -1,0 +1,34 @@
+/* ===== 固定レイアウトの決定版 ===== */
+:root { --sb-top: 56px;  /* 上ナビ高さ */  --sb-nav-w: 250px; } /* サイド幅 */
+
+/* 上ナビ固定 ＋ コンテンツを下に押し出す */
+.sb-nav-fixed .sb-topnav{
+    position: fixed; top:0; left:0; right:0; height: var(--sb-top); z-index:1040;
+}
+.sb-nav-fixed #layoutSidenav{ padding-top: var(--sb-top); }  /* ←これ重要 */
+
+/* 左サイド固定（チャット風） */
+.sb-nav-fixed #layoutSidenav #layoutSidenav_nav{
+    position: fixed !important;
+    top: var(--sb-top); left: 0; width: var(--sb-nav-w);
+    height: calc(100vh - var(--sb-top));
+    background-color: #212529; color:#f8f9fa;
+    overflow-y: auto; z-index:1030;
+}
+
+/* 右側コンテンツはサイド幅ぶんオフセット */
+.sb-nav-fixed #layoutSidenav #layoutSidenav_content{
+    margin-left: var(--sb-nav-w);
+    min-height: calc(100vh - var(--sb-top));
+}
+
+/* ハンバーガーで畳む */
+.sb-sidenav-toggled #layoutSidenav #layoutSidenav_nav{ transform: translateX(-100%); }
+.sb-sidenav-toggled #layoutSidenav #layoutSidenav_content{ margin-left: 0 !important; }
+
+/* モバイル：デフォ隠し、開いたら表示 */
+@media (max-width: 991.98px){
+    .sb-nav-fixed #layoutSidenav #layoutSidenav_nav{ transform: translateX(-100%); }
+    .sb-nav-fixed.sb-sidenav-toggled #layoutSidenav #layoutSidenav_nav{ transform: none; }
+    .sb-nav-fixed #layoutSidenav #layoutSidenav_content{ margin-left: 0; }
+}

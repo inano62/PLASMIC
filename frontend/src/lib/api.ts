@@ -1,6 +1,11 @@
 // src/lib/api.ts
-const BASE = "/api";
+const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api';
 
+async function getJson<T>(path: string) {
+    const res = await fetch(`${BASE}${path}`, { credentials: 'include' });
+    if (!res.ok) throw new Error(`${res.status}`);
+    return res.json() as Promise<T>;
+}
 // ---- 内部状態（Bearer トークン or Cookie）
 let bearerToken: string | null = null;
 export function setToken(token: string | null) {

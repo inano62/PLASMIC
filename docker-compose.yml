@@ -22,6 +22,9 @@ services:
       "./www:/var/www" ,
       "./tools/php-fpm-overrides.conf:/usr/local/etc/php-fpm.d/zz-overrides.conf:ro"
     ]
+    depends_on:
+      mysql:
+        condition: service_healthy
     expose: [ "9000" ]
     networks: [ appnet ]
 
@@ -42,6 +45,12 @@ services:
   mysql:
     build: { context: "./docker/mysql/" }
     command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$MYSQL_ROOT_PASSWORD" ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
     environment:
       - MYSQL_DATABASE=test_db_name
       - MYSQL_HOST=mysql

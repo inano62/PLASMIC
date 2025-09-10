@@ -11,12 +11,13 @@ export default defineConfig({
     ],
     server: {
         port: 5176,
-        host: true,
+        strictPort: true,
+        host: "localhost",
         proxy: {
-            '/api':     { target: 'http://web', changeOrigin: true },
-            '/sanctum': { target: 'http://web', changeOrigin: true },
-            '/login':   { target: 'http://web', changeOrigin: true },
-            '/logout':  { target: 'http://web', changeOrigin: true },
+            '/api':     {  target: 'http://localhost:8000', changeOrigin: true, rewrite: p => p      ,},
+            '/sanctum': { target: 'http://localhost:8000', changeOrigin: true },
+            '/login':   { target: 'http://localhost:8000', changeOrigin: true },
+            '/logout':  { target: 'http://localhost:8000', changeOrigin: true },
         },
     },
     build: { outDir: '../public/dist', emptyOutDir: true },

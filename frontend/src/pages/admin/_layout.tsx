@@ -1,43 +1,77 @@
 import { useState } from "react";
 import { Outlet, Link, NavLink } from "react-router-dom";
 
+/**
+ * ポイント
+ * - ルートに "sb-nav-fixed sb" を必ず付ける（全角スペース禁止）
+ * - サイドナビの開閉は sb-sidenav-toggled クラスで制御（StartBootstrap流）
+ * - a href="#" は押下でページトップに飛ぶので button に変更
+ */
 export default function AdminLayout() {
     const [open, setOpen] = useState(true);
 
     return (
-        <div className="sb-nav-fixed">
-            {/* TopNav */}
+        <div className={`sb-nav-fixed sb ${open ? "" : "sb-sidenav-toggled"}`}>
+            {/* TopNav（固定ヘッダー） */}
             <nav className="sb-topnav navbar navbar-expand navbar-dark bg-dark">
                 <Link className="navbar-brand ps-3" to="/admin">Start Bootstrap</Link>
-                <button className="btn btn-link btn-sm me-4" onClick={() => setOpen(o=>!o)}>
+
+                {/* 左のハンバーガー：サイドナビ開閉 */}
+                <button
+                    type="button"
+                    className="btn btn-link btn-sm me-4"
+                    aria-label="Toggle sidebar"
+                    onClick={() => setOpen(o => !o)}
+                >
                     <i className="fas fa-bars" />
                 </button>
+
+                {/* 疑似検索（右寄せ） */}
                 <form className="d-none d-md-inline-block ms-auto me-3 my-2 my-md-0">
                     <div className="input-group">
                         <input className="form-control" placeholder="Search for..." />
-                        <button className="btn btn-primary" type="button"><i className="fas fa-search" /></button>
+                        <button className="btn btn-primary" type="button">
+                            <i className="fas fa-search" />
+                        </button>
                     </div>
                 </form>
+
+                {/* 右上ユーザメニュー */}
                 <ul className="navbar-nav ms-auto me-3">
                     <li className="nav-item dropdown">
-                        <a className="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                        <button
+                            className="nav-link dropdown-toggle btn btn-link p-0 text-decoration-none"
+                            id="userMenu"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            type="button"
+                        >
                             <i className="fas fa-user fa-fw" />
-                        </a>
-                        <ul className="dropdown-menu dropdown-menu-end">
-                            <li><a className="dropdown-item" href="#">Settings</a></li>
-                            <li><a className="dropdown-item" href="#">Activity Log</a></li>
+                        </button>
+                        <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                            <li><button className="dropdown-item" type="button">Settings</button></li>
+                            <li><button className="dropdown-item" type="button">Activity Log</button></li>
                             <li><hr className="dropdown-divider" /></li>
-                            <li><a className="dropdown-item" href="#" onClick={()=>{
-                                localStorage.removeItem("admin_token");
-                                location.href="/admin/login";
-                            }}>Logout</a></li>
+                            <li>
+                                <button
+                                    className="dropdown-item"
+                                    type="button"
+                                    onClick={() => {
+                                        localStorage.removeItem("admin_token");
+                                        location.href = "/admin/login";
+                                    }}
+                                >
+                                    Logout
+                                </button>
+                            </li>
                         </ul>
                     </li>
                 </ul>
             </nav>
 
-            <div id="layoutSidenav" className={open ? "" : "toggled"}>
-                {/* SideNav */}
+            {/* レイアウト本体 */}
+            <div id="layoutSidenav">
+                {/* SideNav（左） */}
                 <div id="layoutSidenav_nav">
                     <nav className="sb-sidenav accordion sb-sidenav-dark">
                         <div className="sb-sidenav-menu">
@@ -70,13 +104,19 @@ export default function AdminLayout() {
                     </nav>
                 </div>
 
-                {/* Content */}
+                {/* Content（右） */}
                 <div id="layoutSidenav_content">
-                    <main className="p-4"><Outlet /></main>
+                    {/* Builder 側の sticky を効かせるためパディングだけにする */}
+                    <main className="p-4">
+                        <Outlet />
+                    </main>
+
                     <footer className="py-4 bg-light mt-auto">
                         <div className="container-fluid px-4 d-flex align-items-center justify-content-between small">
                             <div className="text-muted">Copyright © Your Website 2025</div>
-                            <div><a href="#">Privacy Policy</a> · <a href="#">Terms &amp; Conditions</a></div>
+                            <div>
+                                <a href="#">Privacy Policy</a> · <a href="#">Terms &amp; Conditions</a>
+                            </div>
                         </div>
                     </footer>
                 </div>

@@ -107,7 +107,7 @@ export default function Builder() {
                     </div>
 
                     {p.blocks.map(b=>(
-                        <div key={b.id} className="border rounded-4 p-3 mb-3">
+                        <div key={b.id ?? `${b.type}-${b.sort ?? 0}`} className="border rounded-4 p-3 mb-3">
                             <div className="d-flex align-items-center mb-2">
                                 <div className="badge text-bg-secondary me-2">{b.type}</div>
                                 <div className="ms-auto d-flex gap-2">

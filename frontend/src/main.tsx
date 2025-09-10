@@ -35,6 +35,7 @@ import "./styles/sb-admin.css";
 import "./styles/hide-local.css";
 import "./index.css";
 import "bootstrap";
+import "@/assets/site-builder.css";
 
 function RequireAdmin() {
     const authed = !!localStorage.getItem(ADMIN_TOKEN_KEY);
