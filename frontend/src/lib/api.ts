@@ -1,6 +1,5 @@
 // src/lib/api.ts
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api';
-
 async function getJson<T>(path: string) {
     const res = await fetch(`${BASE}${path}`, { credentials: 'include' });
     if (!res.ok) throw new Error(`${res.status}`);

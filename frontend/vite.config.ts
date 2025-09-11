@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 // import tailwindConfig from "./tailwind.config.ts";
 import tailwind from "@tailwindcss/vite";
-
+import autoprefixer from 'autoprefixer'
 
 export default defineConfig({
   plugins: [react(),tailwind()],
@@ -11,6 +11,9 @@ export default defineConfig({
     outDir: '../public/dist',  // Laravelのpublic直下にビルド成果物を出力
     emptyOutDir: true,
   },
+    css: {
+        postcss: { plugins: [tailwind(), autoprefixer()] },
+    },
   server: {
       host: '0.0.0.0',
       port: 5176,        // ← docker-compose と一致させる

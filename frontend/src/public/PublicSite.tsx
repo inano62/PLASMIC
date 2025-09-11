@@ -53,7 +53,7 @@ export default function PublicSite() {
 
     if (err) return <div style={{ padding: 24 }}>読み込み失敗: {err}</div>;
     if (!data) return <div style={{ padding: 24 }}>読み込み中…</div>;
-
+console.log(data)
     return (
         <div>
             <header className="container py-4 d-flex gap-3">
@@ -61,7 +61,7 @@ export default function PublicSite() {
                     {data.site.title}
                 </Link>
                 <nav className="ms-auto d-flex gap-3">
-                    {data.nav.map((n) => (
+                    {(data.nav ?? []).map((n) => (
                         <Link key={n.path} to={`/s/${data.site.slug}${n.path}`} className="link-secondary">
                             {n.title}
                         </Link>
@@ -73,10 +73,12 @@ export default function PublicSite() {
                 {data.page.blocks
                     .slice()
                     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
-                    .map((b, i) => {
-                        const Comp = RENDERERS[b.type];
+                    .map((b) => {
+                        const type = String(b.type || '').toLowerCase();    // ★小文字化
+                        const Comp = RENDERERS[type];
+                        const key  = (b as any).id ?? `${type}-${b.sort ?? 0}`; // ★安定 key
                         return (
-                            <div key={i}>
+                            <div key={key}>
                                 {Comp ? (
                                     <Comp data={b.data} />
                                 ) : (

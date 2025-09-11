@@ -5,7 +5,7 @@ use App\Http\Controllers\{
     PublicSiteApiController, SiteBuilderController, PublishController,
     PublicController, TimeslotController, AppointmentController,
     StripeWebhookController, TokenController, ReservationController,
-    StripeController, ClientController
+    StripeController, ClientController,MediaController
 };
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -40,6 +40,18 @@ Route::prefix('admin')->group(function () {
     Route::post  ('/sites/{id}/publish',    [SiteBuilderController::class,'publish']);
 });
 
+//Route::post('/media', [MediaController::class,'store']);
+Route::post('/media', function (Request $r) {
+    $r->validate([
+        'file' => ['required','file','mimes:jpg,jpeg,png,webp,gif','max:10240'], // 10MBまで
+    ]);
+
+    $path = $r->file('file')->store('uploads', 'public');
+    return [
+        'url'  => asset('storage/'.$path),
+        'path' => $path,
+    ];
+});
 // フロントの赤ログ止める用スタブ（必要なら残す）
 Route::get('/appointments/nearby', [AppointmentController::class, 'nearby']);
 Route::middleware('auth:sanctum')->get('/whoami', fn() =>

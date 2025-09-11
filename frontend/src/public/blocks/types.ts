@@ -1,6 +1,11 @@
 export type HeroData = {
-    kicker?: string; title?: string; subtitle?: string;
-    btnText?: string; btnHref?: string;
+    kicker?: string;
+    title?: string;
+    subtitle?: string;
+    btnText?: string;
+    btnHref?: string;
+    headline?: string;
+    imgUrl? : any;
 };
 export type FeaturesData = {
     items?: { title?: string; text?: string }[];

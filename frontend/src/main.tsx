@@ -29,13 +29,15 @@ import ReservePage from "./pages/ReservePage";
 import PublicSite from "./public/PublicSite";
 
 // CSS
+import "./App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import "./styles/sb-admin.css";
 import "./styles/hide-local.css";
 import "./index.css";
-import "bootstrap";
 import "@/assets/site-builder.css";
+import 'bootstrap';
+
 
 function RequireAdmin() {
     const authed = !!localStorage.getItem(ADMIN_TOKEN_KEY);

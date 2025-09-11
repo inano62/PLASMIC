@@ -8,6 +8,11 @@ use Illuminate\Support\Facades\Storage;
 
 class MediaController extends Controller
 {
+    public function store(Request $r) {
+        $r->validate(['file'=>['required','file','mimes:jpg,jpeg,png,webp,gif','max:10240']]);
+        $path = $r->file('file')->store('uploads','public');
+        return ['url'=>asset('storage/'.$path), 'path'=>$path];
+    }
     public function upload(Request $r) {
         $r->validate(['file'=>'required|file|mimes:jpg,jpeg,png,webp,gif|max:5120']);
         $f = $r->file('file');
