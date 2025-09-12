@@ -9,11 +9,12 @@ export default function Hero({ data }: { data: HeroData }) {
     const btnHref  = data?.btnHref ?? "#";
     const imgUrl   = data?.imgUrl ?? null;
     return (
+        <div className="relative">
         <section className="text-center py-5">
+
             {kicker && <div className="text-sm text-slate-500">{kicker}</div>}
             {title && <h1 className="text-4xl font-extrabold my-3">{title}</h1>}
             {subtitle && <p className="text-slate-600">{subtitle}</p>}
-
             {/* CTA */}
             {btnText && (
                 <div className="mt-4">
@@ -30,5 +31,6 @@ export default function Hero({ data }: { data: HeroData }) {
                 </div>
             )}
         </section>
+        </div>
     );
 }

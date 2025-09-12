@@ -15,6 +15,7 @@ const RENDERERS: Record<string, (p: { data: any }) => JSX.Element> = {
     hero: (p) => <Hero data={p.data} />,
     features: (p) => <Features data={p.data} />,
     cta: (p) => <Cta data={p.data} />,
+    header: (p) => <HeaderBlock data={p.data} />,
 };
 
 export default function PublicSite() {
@@ -53,11 +54,23 @@ export default function PublicSite() {
 
     if (err) return <div style={{ padding: 24 }}>読み込み失敗: {err}</div>;
     if (!data) return <div style={{ padding: 24 }}>読み込み中…</div>;
-
+    const heroBlock = data.page.blocks.find(b => String(b.type).toLowerCase() === "hero");
+    const heroImgUrl: string | undefined = heroBlock?.data?.imgUrl;
+console.log(heroImgUrl)
 
     return (
-        <div>
-            <header className="container py-4 d-flex gap-3">
+        <div className="relative isolate">
+            {heroImgUrl && (
+                <div className="absolute inset-x-0 top-0 z-0 h-[260px] md:h-[360px]">
+                    <img src={heroImgUrl} alt="" className="w-full h-full object-cover" />
+                    {/* 上を少し白くしてテキストを読みやすく */}
+                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-white/70 to-transparent" />
+                    {/* 下を白にフェード */}
+                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-white" />
+                </div>
+            )}
+            <header className="container py-4 d-flex gap-3 relative z-10">
+
                 <Link to={`/s/${data.site.slug}/`} className="fw-bold text-decoration-none fs-5">
                     {data.site.title}
                 </Link>
@@ -71,7 +84,7 @@ export default function PublicSite() {
 
             </header>
 
-            <main className="container py-4 d-grid gap-5">
+            <main className="container py-4 d-grid gap-5 relative z-10">
                 {data.page.blocks
                     .slice()
                     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
