@@ -7,104 +7,102 @@ services:
   web:
     image: nginx:alpine
     container_name: web
-    ports: [ "8000:80" ]
+    ports: ["8000:80"]
     volumes:
       - ./www:/var/www
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on: [ app ]
-    networks: [ appnet ]
-
+    depends_on: [app]
+    networks: [appnet]
 
   app:
     build: { context: "./docker/app/" }
     container_name: app
     working_dir: /var/www
-    volumes: [
-      "./www:/var/www" ,
-      "./tools/php-fpm-overrides.conf:/usr/local/etc/php-fpm.d/zz-overrides.conf:ro"
-    ]
+    volumes:
+      - ./www:/var/www
+      - ./tools/php-fpm-overrides.conf:/usr/local/etc/php-fpm.d/zz-overrides.conf:ro
+      - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
     depends_on:
       mysql:
         condition: service_healthy
-    expose: [ "9000" ]
-    networks: [ appnet ]
+    expose: ["9000"]
+    networks: [appnet]
 
   next:
-#    image: node:20-alpine
-    build: { context: ./frontend }
+    build: ./frontend
     container_name: next
     working_dir: /app
-    ports: [ "5176:5176" ]
+    ports: ["5176:5176"]
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
       - NEXT_TELEMETRY_DISABLED=1
-    command: sh -lc "npm i && npx vite --host 0.0.0.0 --port 5177 --strictPort"
-    networks: [ appnet ]
+    # 5176 を使う。--strictPort で固定
+    command: sh -lc "npm i && npx vite --host 0.0.0.0 --port 5176 --strictPort"
+    networks: [appnet]
 
   mysql:
-    build: { context: "./docker/mysql/" }
-    command: --default-authentication-plugin=mysql_native_password
+    image: mysql:8.0
+    container_name: mysql
+    command:
+      - "--default-time-zone=Asia/Tokyo"
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_0900_ai_ci"
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$MYSQL_ROOT_PASSWORD" ]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     environment:
-      - MYSQL_DATABASE=test_db_name
-      - MYSQL_HOST=mysql
-      - MYSQL_USER=test_user
-      - MYSQL_PASSWORD=test_pass
-      - MYSQL_ROOT_PASSWORD=test_root_pass
+      - MYSQL_DATABASE=plasmic
+      - MYSQL_USER=plasmic
+      - MYSQL_PASSWORD=plasmic
+      - MYSQL_ROOT_PASSWORD=rootpass   # ← 綴り統一
       - TZ=Asia/Tokyo
     volumes:
-      - "./docker/mysql/storage/:/var/lib/mysql"
-      - "./docker/mysql/initdb/:/docker-entrypoint-initdb.d"
-    ports: [ "3307:3306" ]
-    networks: [ appnet ]
+      - db:/var/lib/mysql              # ← 片方だけに統一
+      - ./docker/mysql/initdb/:/docker-entrypoint-initdb.d
+    ports: ["3307:3306"]               # ホスト3307→コンテナ3306
+    networks: [appnet]
 
   phpmyadmin:
     image: phpmyadmin:latest
-    ports: [ "8082:80" ]
+    container_name: phpmyadmin
+    ports: ["8082:80"]
     environment:
       - PMA_HOST=mysql
-      - PMA_USER=test_user
-      - PMA_PASSWORD=test_pass
-    depends_on: [ mysql ]
-    networks: [ appnet ]
+      - PMA_USER=plasmic               # ← MySQL と合わせる
+      - PMA_PASSWORD=plasmic
+    depends_on: [mysql]
+    networks: [appnet]
 
   mailhog:
     image: mailhog/mailhog:latest
+    container_name: mailhog
     ports:
       - "8025:8025"
       - "1025:1025"
-    networks: [ appnet ]
+    networks: [appnet]
 
-  # --- LiveKit 本体（envのみで起動） ---
   livekit:
     image: livekit/livekit-server:latest
     container_name: livekit-video
-    command: [ "--bind","0.0.0.0" ]
-
+    command: ["--bind","0.0.0.0"]
     environment:
       LIVEKIT_LOG_LEVEL: info
       LIVEKIT_PORT: "7880"
       LIVEKIT_BIND_ADDRESSES: "0.0.0.0"
       LIVEKIT_RTC_ALLOW_TCP_FALLBACK: "true"
-      LIVEKIT_TURN_ENABLED: "false"   # まずは TURN なしで立ち上げ確認
-      # ← ここを “文字列ブロック” で
+      LIVEKIT_TURN_ENABLED: "false"
       LIVEKIT_KEYS: |
         k1: supersecret1234567890supersecret1234
     ports:
       - "7880:7880"
       - "7881:7881"
     restart: unless-stopped
-    networks: [ appnet ]
+    networks: [appnet]
 
-
-  # --- TURN/STUN ---
   coturn:
     image: coturn/coturn:latest
     container_name: coturn
@@ -123,10 +121,7 @@ services:
       - "3478:3478/udp"
       - "5349:5349/tcp"
       - "40000-40999:40000-40999/udp"
-    networks: [ appnet ]
-
+    networks: [appnet]
 
 volumes:
-  # ← top-level（servicesの外）にあること！
-  caddy_data:
-  caddy_config:
+  db:   # ← これが必須（未定義エラーの根本）

@@ -85,16 +85,13 @@ export async function tokenLogin(email: string, password: string) {
     const { token } = await jpost<{ token: string }>("/auth/token", { email, password });
     setToken(token);
 }
-export async function jupload<T = any>(path: string, form: FormData, init?: RequestInit): Promise<T> {
-    const res = await fetch("/api" + path, withHeaders({
-        method: "POST",
-        body: form,
-        // Content-Type は指定しない（ブラウザが boundary を付ける）
-        ...(init || {}),
-    }));
+// 写真などの画像を乗せる部分
+export async function jupload<T>(path: string, fd: FormData): Promise<T> {
+    const res = await fetch(`/api${path}`, { method: 'POST', body: fd });
     if (!res.ok) throw new Error(await res.text());
     return (await res.json()) as T;
 }
+
 /* ========== default export（1回だけ） ========== */
 export default {
     get, post, getJson: jget, postJson: jpost, jput, jdel, jupload,

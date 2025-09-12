@@ -1,6 +1,7 @@
 // src/pages/admin/Site.tsx
 import { useEffect, useState } from "react";
-import API from "../../lib/api"; // default { get, post, getJson, postJson }
+import API from "../../lib/api";
+import Builder from "./site/Builder.tsx"; // default { get, post, getJson, postJson }
 
 type Status = { allowed: boolean; account_type: string; price_id?: string };
 
@@ -50,5 +51,5 @@ export default function AdminSite() {
     }
 
     // 課金済み → 既存のビルダーを表示
-    return <SiteBuilder />; // ← いまのビルダーコンポーネントをここでレンダリング
+    return <Builder />; // ← いまのビルダーコンポーネントをここでレンダリング
 }

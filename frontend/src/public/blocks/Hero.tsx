@@ -26,7 +26,7 @@ export default function Hero({ data }: { data: HeroData }) {
             {/* 画像（任意） */}
             {imgUrl && (
                 <div className="mt-8">
-                    <img src={imgUrl} alt="" className="max-w-full rounded-2xl border border-slate-200" />
+                    <img src={imgUrl} alt="" className="img-fluid rounded-2xl border border-slate-200 mt-4" />
                 </div>
             )}
         </section>

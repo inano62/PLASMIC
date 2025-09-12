@@ -53,7 +53,8 @@ export default function PublicSite() {
 
     if (err) return <div style={{ padding: 24 }}>読み込み失敗: {err}</div>;
     if (!data) return <div style={{ padding: 24 }}>読み込み中…</div>;
-console.log(data)
+
+
     return (
         <div>
             <header className="container py-4 d-flex gap-3">
@@ -67,6 +68,7 @@ console.log(data)
                         </Link>
                     ))}
                 </nav>
+
             </header>
 
             <main className="container py-4 d-grid gap-5">

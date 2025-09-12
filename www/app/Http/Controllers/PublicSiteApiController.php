@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\{Site, Page};
+use App\Models\{Media, Site, Page};
 
 class PublicSiteApiController extends Controller
 {
@@ -38,20 +38,32 @@ class PublicSiteApiController extends Controller
         }]);
 
         return response()->json([
-            'site' => $site->only(['id','title','slug','meta']),
+            'site' => $site->only('id','title','slug','meta'),
             'page' => [
-                'id'     => $page->id,
-                'title'  => $page->title,
-                'path'   => $page->path,
-                'sort'   => $page->sort,
-                'blocks' => $page->blocks->map(function ($b) {
+                'id'    => $page->id,
+                'title' => $page->title,
+                'path'  => $page->path,
+                'sort'  => $page->sort,
+                'blocks'=> $page->blocks->map(function ($b) {
+                    $data = $b->data ?? [];
+
+                    // --- ここで imgId → imgUrl を補完 ---
+                    if (isset($data['imgId']) && empty($data['imgUrl'])) {
+                        if ($m = Media::find($data['imgId'])) {
+                            // Media モデルの accessor で url を取得
+                            if ($m =\App\Models\Media::find($data['imgId'])) {
+                                $data['imgUrl'] = url($m->path);
+                            }
+                        }
+                    }
+
                     return [
                         'id'   => $b->id,
                         'type' => $b->type,
                         'sort' => $b->sort,
-                        'data' => $b->data,
+                        'data' => $data,
                     ];
-                })->all(),
+                }),
             ],
         ]);
     }
