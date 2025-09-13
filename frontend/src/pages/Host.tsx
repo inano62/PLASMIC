@@ -1,47 +1,48 @@
-// pages/Host.tsx
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
-import  API  from "../lib/api";
+import API from "../lib/api";
 
-type S = { token?: string; url?: string; err?: string };
+type S = { room?: string; token?: string; url?: string; err?: string };
+
 export default function Host() {
     const [state, setState] = useState<S>({});
-    const roomRef = useRef<string>("");
 
-    // ルーム名の決定（1回だけ）
+    // ルーム名の決定（state に持つ）
     useEffect(() => {
         const qs = new URLSearchParams(location.search);
         const r = qs.get("room");
-        if (r) {
-            roomRef.current = r;
-        } else {
-            const g = "room_" + crypto.randomUUID().slice(0, 8);
-            roomRef.current = g;
+        const room = r || `room_${crypto.randomUUID().slice(0, 8)}`;
+
+        if (!r) {
             const u = new URL(location.href);
-            u.searchParams.set("room", g);
+            u.searchParams.set("room", room);
             history.replaceState({}, "", u.toString());
         }
+        setState((s) => ({ ...s, room }));
     }, []);
 
     // トークン取得（room が決まってから）
     useEffect(() => {
-        if (!roomRef.current) return;
+        if (!state.room) return;
         (async () => {
             try {
-                const identity = "host-" + crypto.randomUUID();
-                const tres = await API.post("/dev/token", { room: roomRef.current, identity });
-                if (!tres.ok) throw new Error("トークン取得に失敗しました");
-                const t = await tres.json();
-                setState({ token: t.token, url: t.url });
+                const identity = "host-" + crypto.randomUUID().slice(0, 8);
+                // ★ API.post は JSON を返す
+                const res = await API.post<{ token: string }>("dev/token", {
+                    room: state.room,
+                    identity,
+                    name: "host",
+                });
+                setState((s) => ({ ...s, token: res.token }));
             } catch (e: any) {
-                setState({ err: e.message || String(e) });
+                setState((s) => ({ ...s, err: e.message || String(e) }));
             }
         })();
-    }, [roomRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [state.room]);
 
     if (state.err) return <div>エラー: {state.err}</div>;
-    if (!state.token) return <div>入室準備中…</div>;
+    if (!state.token || !state.room) return <div>入室準備中…</div>;
 
     const envUrl = import.meta.env.VITE_LIVEKIT_URL as string | undefined;
     const localDefault = location.hostname === "localhost" ? "ws://localhost:7880" : undefined;
@@ -49,7 +50,7 @@ export default function Host() {
 
     const guestUrl = (() => {
         const u = new URL(location.origin + "/wait");
-        u.searchParams.set("room", roomRef.current);
+        u.searchParams.set("room", state.room!);
         return u.toString();
     })();
 

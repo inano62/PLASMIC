@@ -331,88 +331,37 @@ class AppointmentController extends Controller
             ->latest('id')->take(1)->get();
     }
 
-    public function storeForTenant(Request $req, string $tenant) {
+    public function storeForTenant(Request $req, int $tenant) {
+        $tenantId = $tenant; // ← これでOK（ルート {tenant} は数値限定にしておくと尚良し）
 
-        $tenantId = resolveTenantId($tenant);
         $lawyerId = (int) $req->input('lawyer_id', 1);
-        $startIso = $req->input('start_at', now()->addMinutes(30)->toISOString());
-        $payload = [
-            'tenant_id'       => $tenantId,
-            'lawyer_user_id'  => $lawyerId,
-            'client_user_id'  => null,                      // 使っていないなら null 可（DBが許せば）
-            'client_name'     => $req->input('client_name', 'Guest'),
-            'client_email'    => $req->input('client_email'),
-            'client_phone'    => $req->input('client_phone'),
-            'starts_at'       => Carbon::parse($startIso),
-            'ends_at'         => Carbon::parse($startIso)->addMinutes(30),
-            'status'          => 'booked',
-            'price_jpy'       => 0,
-            'room_name'       => 'room_'.Str::lower(Str::random(10)),
-            'visitor_id'      => (string) $req->input('visitor_id', 'public'),
-            'purpose_title'   => $req->input('purpose_title', 'オンライン相談'),
-            'purpose_detail'  => $req->input('purpose_detail'),
-        ];
-
-//        $data = $req->validate([
-////            'lawyer_id'      => 'required|integer',
-////            'client_name'    => 'required|string|max:100',
-////            'client_email'   => 'nullable|email',
-////            'client_phone'   => 'nullable|string|max:50',
-////            'start_at'       => 'required|date',
-////            'visitor_id'     => 'required|string|max:64',
-////            'purpose_title'  => 'required|string|max:200',
-////            'purpose_detail' => 'nullable|string',
-//        ]);
-//        $data['tenant_id'] = $tenantId;
-
-        // ここで空き枠チェック → 競合なら 409 & suggested_start_at を返す
-        // …
-
-        $startIso = $req->input('start_at');             // ISO8601が来る想定
+        $startIso = $req->input('start_at');
         abort_unless($startIso, 422, 'start_at is required');
 
-// JSTに寄せて保存したいなら setTimezone を付ける
-        $starts = \Carbon\Carbon::parse($startIso)->setTimezone(config('app.timezone')); // Asia/Tokyo
+        $starts = \Carbon\Carbon::parse($startIso)->setTimezone(config('app.timezone'));
         $ends   = (clone $starts)->addMinutes(30);
 
         $a = \App\Models\Appointment::create([
-            'tenant_id'       => $tenantId,
-            'lawyer_user_id'  => $lawyerId,
-            'client_user_id'  => null,
-            'client_name'     => $req->input('client_name', 'Guest'),
-            'client_email'    => $req->input('client_email'),
-            'client_phone'    => $req->input('client_phone'),
-            'starts_at'       => $starts,
-            'ends_at'         => $ends,
-            'status'          => 'booked',
-            'price_jpy'       => 0,
-            'room_name'       => 'room_'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(10)),
-            'visitor_id'      => (string) $req->input('visitor_id', 'public'),
-            'purpose_title'   => $req->input('purpose_title', 'オンライン相談'),
-            'purpose_detail'  => $req->input('purpose_detail'),
+            'tenant_id'      => $tenantId,
+            'lawyer_user_id' => $lawyerId,
+            'client_user_id' => null,
+            'client_name'    => $req->input('client_name', 'Guest'),
+            'client_email'   => $req->input('client_email'),
+            'client_phone'   => $req->input('client_phone'),
+            'starts_at'      => $starts,
+            'ends_at'        => $ends,
+            'status'         => 'booked',
+            'price_jpy'      => 0,
+            'room_name'      => 'room_'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(10)),
+            'visitor_id'     => (string) $req->input('visitor_id', 'public'),
+            'purpose_title'  => $req->input('purpose_title', 'オンライン相談'),
+            'purpose_detail' => $req->input('purpose_detail'),
         ]);
-// created_at / updated_at は書かない（Eloquentが自動で入れる）
-
-        // ★ ゲスト用 ticket（sub は room_name）
-        $jwt = JWT::encode(
-            [
-                'sub'=>$a->room_name,
-                'exp'=>time()+1800
-            ],
-            env('TICKET_SECRET','changeme'),
-            'HS256'
-        );
 
         return response()->json([
             'appointmentId' => (string)$a->id,
-            'clientJoinPath'=> "/wait?room=$a->room_name",          // ← 統一
+            'clientJoinPath'=> "/wait?room={$a->room_name}",
             'hostJoinPath'  => "/host?aid={$a->id}&room={$a->room_name}",
         ], 201);
-//        return response()->json([
-//            'appointmentId' => $a->id,
-//            'clientJoinPath'=> "/wait?aid={$a->id}",
-//            'hostJoinPath'  => "/host?aid={$a->id}",
-//        ], 201);
     }
-
 }

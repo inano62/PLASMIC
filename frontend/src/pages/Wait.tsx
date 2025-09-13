@@ -1,4 +1,3 @@
-// src/pages/Wait.tsx
 import { useEffect, useState } from "react";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
@@ -15,26 +14,31 @@ export default function Wait() {
                 const qs = new URLSearchParams(location.search);
                 let room = qs.get("room") || undefined;
 
+                // room が無ければ ticket/aid から解決
                 if (!room) {
                     const ticket = qs.get("ticket");
                     const aid = qs.get("aid");
-                    let url = "";
-                    if (ticket) url = `/wait/resolve?ticket=${encodeURIComponent(ticket)}`;
-                    else if (aid) url = `/wait/resolve?aid=${encodeURIComponent(aid)}`;
-                    else throw new Error("room または ticket が必要です");
+                    if (!ticket && !aid) throw new Error("room または ticket が必要です");
 
-                    const vres = await API.get(url);
-                    if (!vres.ok) throw new Error("ticket/aid の解決に失敗しました");
-                    const v = await vres.json();
+                    const url = ticket
+                        ? `/wait/resolve?ticket=${encodeURIComponent(ticket)}`
+                        : `/wait/resolve?aid=${encodeURIComponent(aid!)}`;
+
+                    // API.get は JSON を返す
+                    const v = await API.get<{ room: string }>(url);
                     room = v.room;
+                    if (!room) throw new Error("ticket/aid の解決に失敗しました");
                 }
 
-                const identity = "guest-" + crypto.randomUUID();
-                const tres = await API.post("/dev/token", { room, identity });
-                if (!tres.ok) throw new Error("トークン取得に失敗しました");
-                const t = await tres.json();
-                setState({ room, token: t.token, url: t.url });
+                const identity = "guest-" + crypto.randomUUID().slice(0, 8);
+                // ★ dev/token に POST（API.post は JSON を返す）
+                const res = await API.post<{ token: string }>("dev/token", {
+                    room,
+                    identity,
+                    name: identity,
+                });
 
+                setState({ room, token: res.token });
             } catch (e: any) {
                 setState({ err: e.message || String(e) });
             }

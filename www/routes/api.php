@@ -18,6 +18,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Firebase\JWT\JWT;   // ← 追加
+use Firebase\JWT\Key;
 
 Route::get('/ping', fn() => ['ok'=>true, 'time'=>now()->toIso8601String()]);
 
@@ -48,6 +50,7 @@ Route::prefix('admin')->group(function () {
     Route::put   ('/blocks/{id}',           [SiteBuilderController::class,'updateBlock']);
     Route::delete('/blocks/{id}',           [SiteBuilderController::class,'deleteBlock']);
     Route::post  ('/sites/{id}/publish',    [SiteBuilderController::class,'publish']);
+    Route::post('/appointments', [AppointmentController::class, 'storeForTenant']);
     Route::post('/upload', function (Request $req) {
         $req->validate([
             'file' => ['required','image','max:5120'], // 5MB
@@ -88,4 +91,87 @@ Route::post('/auth/token', function (Request $r) {
     $user = $r->user();
     $token = $user->createToken('admin')->plainTextToken;
     return response()->json(['token'=>$token, 'user'=>['id'=>$user->id,'name'=>$user->name]]);
+});
+Route::match(['GET','POST'], '/video/token', function (Request $r) {
+    $room   = $r->input('room') ?: $r->query('room');
+    $ticket = $r->input('ticket') ?: $r->query('ticket');
+    $aid    = $r->input('aid') ?: $r->query('aid');
+
+    // ticket → room_name
+    if (!$room && $ticket) {
+        try {
+            $decoded = JWT::decode($ticket, new Key(env('TICKET_SECRET','changeme'), 'HS256'));
+            $room = $decoded->sub ?? null;
+        } catch (\Throwable $e) {}
+    }
+    // aid → appointments.room_name
+    if (!$room && $aid) {
+        $room = optional(\App\Models\Appointment::find($aid))->room_name;
+    }
+    abort_unless($room, 404, 'room not found');
+
+    $apiKey    = env('LIVEKIT_API_KEY','devkey');
+    $apiSecret = env('LIVEKIT_API_SECRET','devsecret');
+    $wsUrl     = env('LIVEKIT_WS_URL', env('LIVEKIT_URL','ws://localhost:7880'));
+
+    $identity = (string)($r->input('identity') ?: Str::uuid());
+    $claims = [
+        'jti'   => (string) Str::uuid(),
+        'iss'   => $apiKey,
+        'sub'   => $identity,
+        'nbf'   => time()-10,
+        'exp'   => time()+3600,
+        'video' => ['roomJoin'=>true, 'room'=>$room, 'canPublish'=>true, 'canSubscribe'=>true, 'canPublishData'=>true],
+    ];
+    $jwt = JWT::encode($claims, $apiSecret, 'HS256');
+
+    // フロントの揺れに両対応
+    return response()->json([
+        'url'         => $wsUrl,
+        'wsUrl'       => $wsUrl,
+        'token'       => $jwt,
+        'accessToken' => $jwt,
+        'room'        => $room,
+        'identity'    => $identity,
+    ]);
+});
+
+// ローカル互換：/api/dev/token を /api/video/token に寄せる
+if (app()->environment('local')) {
+    Route::match(['GET','POST'], '/dev/token', fn(Request $r) => app()->handle(Request::create('/api/video/token', $r->method(), $r->all())));
+}
+Route::post('/dev/token', function (Request $r) {
+    $room     = $r->input('room')      ?? 'room_'.Str::lower(Str::random(6));
+    $identity = $r->input('identity')  ?? 'guest_'.Str::lower(Str::random(6));
+    $name     = $r->input('name', $identity);
+
+    $apiKey    = env('LIVEKIT_API_KEY');
+    $apiSecret = env('LIVEKIT_API_SECRET');
+    if (!$apiKey || !$apiSecret) {
+        return response()->json(['message' => 'LIVEKIT_API_KEY / LIVEKIT_API_SECRET が未設定'], 500);
+    }
+
+    // LiveKit の video grant
+    $videoGrant = [
+        'room'              => $room,
+        'roomJoin'          => true,
+        'canPublish'        => true,
+        'canSubscribe'      => true,
+        'canPublishData'    => true,
+        'canUpdateOwnMetadata' => true,
+    ];
+
+    $now = time();
+    $payload = [
+        'iss'   => $apiKey,
+        'sub'   => $identity,
+        'nbf'   => $now - 1,
+        'iat'   => $now,
+        'exp'   => $now + 3600,
+        'name'  => $name,
+        'video' => $videoGrant,
+        'metadata' => json_encode(['name' => $name]),
+    ];
+
+    return ['token' => JWT::encode($payload, $apiSecret, 'HS256')];
 });

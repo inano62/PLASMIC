@@ -31,11 +31,11 @@ return [
     'allowed_origins_patterns' => [],
 
     // レスポンスで露出させたいヘッダがあれば列挙
-    'exposed_headers' => [],
+    'exposed_headers' => ['*'],
 
     // プリフライトのキャッシュ秒数（1時間）
     'max_age' => 3600,
 
     // Cookie ベース認証（Sanctum）なら true
-    'supports_credentials' => true,
+    'supports_credentials' => false,
 ];

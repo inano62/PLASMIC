@@ -1,5 +1,6 @@
 // src/pages/admin/Admin.tsx
 import { useEffect, useMemo, useState } from "react";
+import {TimeRail} from "../components/TimeRail.tsx";
 type Appt = { id:number; client_name:string; starts_at:string; room:string };
 
 export default function Admin(){
@@ -38,6 +39,13 @@ export default function Admin(){
     return (
         <div style={{padding:16}}>
             <h2>今週の予約</h2>
+            <div className="card">
+                <div className="card-header">今週の予約</div>
+                <div className="card-body d-flex">
+                    <TimeRail open="09:00" close="17:00" step={30} />
+                    {/* 予約ブロックはここに重ね描き（APIが空でもレールは見える） */}
+                </div>
+            </div>
             <li key={r.id} className="row">
                 <div className="time">{new Date(r.starts_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
                 <div className="name">{r.client_name}</div>
