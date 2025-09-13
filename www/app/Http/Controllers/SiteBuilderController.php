@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Media;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Site;
 use App\Models\Page;
 use App\Models\Block;
+use RecursiveArrayIterator;
+use RecursiveIteratorIterator;
 
 class SiteBuilderController extends Controller
 {
@@ -49,10 +52,43 @@ class SiteBuilderController extends Controller
     }
 
     // POST /admin/sites/{id}/publish
-    public function publish($id)
+    public function publish(int $id)
     {
-        $site = Site::findOrFail($id);
-        return response()->json(['slug' => $site->slug]);
+        $site = Site::with(['pages.blocks' => fn($q) => $q->orderBy('sort')])->findOrFail($id);
+
+        $payload = [
+            'site' => [
+                'id'    => $site->id,
+                'title' => $site->title,
+                'slug'  => $site->slug,
+                'meta'  => $site->meta,
+            ],
+            'pages' => $site->pages->sortBy('sort')->map(function ($p) {
+                return [
+                    'id'     => $p->id,
+                    'title'  => $p->title,
+                    'path'   => $p->path,
+                    'sort'   => $p->sort,
+                    'blocks' => $p->blocks->sortBy('sort')->map(function ($b) {
+                        // ★ data をそのまま渡す（avatarUrl / bgUrl を落とさない）
+                        $data = is_array($b->data) ? $b->data : (json_decode($b->data, true) ?? []);
+                        return [
+                            'id'   => $b->id,
+                            'type' => $b->type,
+                            'sort' => $b->sort,
+                            'data' => $data,
+                        ];
+                    })->values(),
+                ];
+            })->values(),
+        ];
+
+        // 公開用に JSON を書き出し（簡易実装）
+        Storage::disk('public')->put("published/{$site->slug}.json",
+            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+
+        return response()->json(['ok' => true, 'slug' => $site->slug]);
     }
 
     // POST /admin/sites/{id}/pages  {path,title}
@@ -88,11 +124,15 @@ class SiteBuilderController extends Controller
     // PUT /admin/blocks/{id}  {data,sort?}
     public function updateBlock(Request $r, $id)
     {
-        $b = Block::findOrFail($id);
-        if ($r->has('data')) $b->data = $r->input('data');
-        if ($r->has('sort')) $b->sort = (int)$r->input('sort');
-        $b->save();
-        return response()->json(['ok' => true]);
+        $block = Block::findOrFail($id);
+        $data = $r->input('data', []);
+        if (!is_array($data)) $data = json_decode($data, true) ?? [];
+
+        $block->data = $data;                          // 丸ごと置換
+        $block->sort = $r->input('sort', $block->sort);
+        $block->save();
+
+        return response()->json($block);
     }
 
     // POST /admin/pages/{pageId}/reorder  {ids:[...]}
@@ -110,7 +150,8 @@ class SiteBuilderController extends Controller
     // DELETE /admin/blocks/{id}
     public function deleteBlock($id)
     {
-        Block::where('id', $id)->delete();
+        $block = Block::findOrFail($id);
+        $block->delete();
         return response()->json(['ok' => true]);
     }
 

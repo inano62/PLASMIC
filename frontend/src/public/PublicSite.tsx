@@ -1,24 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useLocation, Link } from "react-router-dom";
+import {JSX, useEffect, useMemo, useState} from "react";
+import {useParams, useLocation, Link, useLoaderData} from "react-router-dom";
 import type { Block } from "./blocks/types";
 import Hero from "./blocks/Hero";
 import Features from "./blocks/Features";
 import Cta from "./blocks/Cta";
+import HeaderBlock from "./blocks/HeaderBlock.tsx";
+import ImageBlock from "./blocks/ImageBlock.tsx";
+import MediaCard from "./blocks/MediaCard";
+import Gallery from "./blocks/Gallery";
 
 type ApiResp = {
     site: { title: string; slug: string };
     page: { title: string; path: string; blocks: Block[] };
     nav: { title: string; path: string }[];
 };
+type Office = { id:number; name:string };
+type Site = { id:number; slug:string; title:string; office?: Office };
 
 const RENDERERS: Record<string, (p: { data: any }) => JSX.Element> = {
     hero: (p) => <Hero data={p.data} />,
     features: (p) => <Features data={p.data} />,
     cta: (p) => <Cta data={p.data} />,
     header: (p) => <HeaderBlock data={p.data} />,
+    image: (p:any) => <ImageBlock data={p.data} />,
+    mediacard: (p:any) => <MediaCard data={p.data} />,
+    gallery: (p:any) => <Gallery data={p.data} />
 };
 
 export default function PublicSite() {
+    const site = useLoaderData() as Site;
     const { slug } = useParams();
     const loc = useLocation();
 
@@ -26,6 +36,10 @@ export default function PublicSite() {
         const raw = loc.pathname.replace(/^\/s\/[^/]+/, "") || "/";
         return raw.startsWith("/") ? raw : `/${raw}`;
     }, [loc.pathname]);
+
+    const reserveHref = slug
+        ? `/reserve?slug=${encodeURIComponent(slug)}`
+        : undefined;
 
     const [data, setData] = useState<ApiResp | null>(null);
     const [err, setErr] = useState<string | null>(null);
@@ -81,7 +95,11 @@ console.log(heroImgUrl)
                         </Link>
                     ))}
                 </nav>
-
+                {reserveHref && (
+                    <Link className="btn btn-success btn-sm" to={reserveHref}>
+                        チャットを予約する
+                    </Link>
+                )}
             </header>
 
             <main className="container py-4 d-grid gap-5 relative z-10">

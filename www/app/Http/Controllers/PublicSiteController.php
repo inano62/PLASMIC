@@ -7,6 +7,11 @@ use App\Models\{Site,Page};
 
 class PublicSiteController extends Controller
 {
+    public function showBySlug(string $slug)
+    {
+        $site = Site::with('office')->where('slug', $slug)->firstOrFail();
+        return response()->json($site);
+    }
     public function show(Request $r, $slug, $any=null){
         $site = Site::where('slug',$slug)->firstOrFail();
         $path = '/'.ltrim($any ?? '/', '/');       // 例: "", "about" → "/about"

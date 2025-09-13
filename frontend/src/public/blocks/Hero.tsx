@@ -7,10 +7,14 @@ export default function Hero({ data }: { data: HeroData }) {
     const subtitle = data?.subtitle ?? "";
     const btnText  = data?.btnText ?? "";
     const btnHref  = data?.btnHref ?? "#";
-    const imgUrl   = data?.imgUrl ?? null;
+    const bg = data?.bgUrl ?? data?.imageUrl ?? data?.imgUrl;      // 後方互換
+    const av = data?.avatarUrl;
+    console.log('bg =', bg);
+    console.log('av =', av);
     return (
         <div className="relative">
-        <section className="text-center py-5">
+            <section className="position-relative text-center text-white"
+                     style={bg ? { backgroundImage:`url(${bg})`, backgroundSize:"cover", backgroundPosition:"center" } : {}}>
 
             {kicker && <div className="text-sm text-slate-500">{kicker}</div>}
             {title && <h1 className="text-4xl font-extrabold my-3">{title}</h1>}
@@ -25,10 +29,14 @@ export default function Hero({ data }: { data: HeroData }) {
             )}
 
             {/* 画像（任意） */}
-            {imgUrl && (
-                <div className="mt-8">
-                    <img src={imgUrl} alt="" className="img-fluid rounded-2xl border border-slate-200 mt-4" />
-                </div>
+            {/*{imgUrl && (*/}
+            {/*    <div className="mt-8">*/}
+            {/*        <img src={imgUrl} alt="" className="img-fluid rounded-2xl border border-slate-200 mt-4" />*/}
+            {/*    </div>*/}
+            {/*)}*/}
+            {av && (
+                <img src={av} className="rounded-circle mb-3"
+                     style={{width:120, height:120, objectFit:"cover", border:"4px solid #fff"}} alt=""/>
             )}
         </section>
         </div>

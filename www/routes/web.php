@@ -1,10 +1,8 @@
 <?php
 
 use App\Http\Controllers\SiteController;
-use App\Models\User;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\PublicSiteController;
 
 require __DIR__ . '/auth.php';
 
@@ -17,11 +15,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/site/thanks',    [SiteController::class, 'thanks'])->name('site.thanks');
 });
 
-// dev 環境だけ、/s/* を Vite (5176) に飛ばす
 if (app()->environment('local')) {
+    // 開発中: React を Vite(5176) で配信
     Route::get('/s/{slug}/{any?}', function () {
-        $uri = request()->getRequestUri(); // /s/slug/... + ?query
+        $uri = request()->getRequestUri(); // /s/slug/... (+ query)
         return redirect()->away("http://localhost:5176{$uri}");
     })->where('any', '.*');
+} else {
+    // 本番/ステージング: Laravel 側で出す（published_html or Blade）
+    Route::get('/s/{slug}/{any?}', [PublicSiteController::class, 'show'])
+        ->where('any', '.*');
 }
-// ← 本番は Laravel で /s/* を持たない（Nginx でフロントにフォールバックさせる）
+// サイト情報JSON
+Route::get('/api/public/sites/{slug}', [PublicSiteController::class, 'site']);
+Route::get('/api/public/sites/{slug}/page', [PublicSiteController::class, 'page']);

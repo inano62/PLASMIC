@@ -13,4 +13,5 @@ class Media extends Model {
     {
         return Storage::disk($this->disk ?? 'public')->url($this->path);
     }
+
 }

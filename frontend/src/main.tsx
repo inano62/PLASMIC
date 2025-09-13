@@ -6,12 +6,11 @@ import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-rou
 import { setToken } from "@/lib/api";
 import { ADMIN_TOKEN_KEY } from "./lib/auth";
 
-// ← Bearer を一度だけセット（.env.local から）
 const token = import.meta.env.VITE_API_TOKEN ?? null;
 setToken(token || null);
 if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
 
-// 画面類
+// 画面
 import SiteLayout from "./layouts/SiteLayout";
 import Home from "./pages/PlasmicLanding";
 import Join from "./pages/Join";
@@ -24,11 +23,10 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import AdminCharts from "./pages/admin/Charts";
 import AdminTables from "./pages/admin/Tables";
 import AdminSiteBuilder from "./pages/admin/site/Builder";
-import Reserve from "./pages/PublicReserve";
-import ReservePage from "./pages/ReservePage";
-import PublicSite from "./public/PublicSite";
+import Reserve from "./pages/PublicReserve";     // 予約フォーム（共通）
+import ReservePage from "./pages/ReservePage";   // /:tenant/reserve 用
+import PublicSite from "./public/PublicSite";    // 先生サイト
 
-// CSS
 import "./App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
@@ -36,8 +34,7 @@ import "./styles/sb-admin.css";
 import "./styles/hide-local.css";
 import "./index.css";
 import "@/assets/site-builder.css";
-import 'bootstrap';
-
+import "bootstrap";
 
 function RequireAdmin() {
     const authed = !!localStorage.getItem(ADMIN_TOKEN_KEY);
@@ -45,20 +42,25 @@ function RequireAdmin() {
 }
 
 const router = createBrowserRouter([
+    // ✅ ここを“1個上”に出す（SiteLayoutの外側）
+    { path: "/s/:slug/*", element: <PublicSite /> },
+    // 先生サイト配下の予約にしたいならこれも直下で OK
+    { path: "/s/:slug/reserve", element: <Reserve /> },
+
     {
         path: "/",
         element: <SiteLayout />,
         children: [
             { index: true, element: <Home /> },
-            { path: "reserve", element: <Reserve /> },
+            { path: "reserve", element: <Reserve /> },            // 共通予約（slug なしのとき）
             { path: ":tenant/reserve", element: <ReservePage /> },
-            { path: "/s/:slug/*", element: <PublicSite /> },
             { path: "wait", element: <Wait /> },
             { path: "host", element: <Host /> },
             { path: "join", element: <Join /> },
             { path: "quick", element: <Quick /> },
         ],
     },
+
     { path: "/admin/login", element: <AdminLogin /> },
     {
         path: "/admin",
@@ -76,6 +78,7 @@ const router = createBrowserRouter([
             },
         ],
     },
+
     { path: "*", element: <div style={{ padding: 24 }}>Not Found</div> },
 ]);
 

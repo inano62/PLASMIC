@@ -6,6 +6,9 @@ export type HeroData = {
     btnHref?: string;
     headline?: string;
     imgUrl? : any;
+    imageUrl?:any;
+    bgUrl?:any;
+    avatarUrl:any;
 };
 export type FeaturesData = {
     items?: { title?: string; text?: string }[];

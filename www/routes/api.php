@@ -1,14 +1,23 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\{
-    PublicSiteApiController, SiteBuilderController, PublishController,
-    PublicController, TimeslotController, AppointmentController,
-    StripeWebhookController, TokenController, ReservationController,
-    StripeController, ClientController,MediaController
-};
+use App\Http\Controllers\{PublicSiteApiController,
+    PublicSiteController,
+    SiteBuilderController,
+    PublishController,
+    PublicController,
+    TimeslotController,
+    AppointmentController,
+    StripeWebhookController,
+    TokenController,
+    ReservationController,
+    StripeController,
+    ClientController,
+    MediaController};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 Route::get('/ping', fn() => ['ok'=>true, 'time'=>now()->toIso8601String()]);
 
@@ -20,6 +29,7 @@ Route::prefix('public')->group(function () {
     Route::get('/tenants/resolve',    [PublicController::class, 'resolveTenant']);
     Route::get('/tenants/{tenant}/pros',  [PublicController::class, 'pros']);
     Route::get('/tenants/{tenant}/slots', [TimeslotController::class, 'listOpen']);
+    Route::get('/sites/by-slug/{slug}', [PublicSiteController::class, 'showBySlug']);
 });
 
 // ───── テナント配下（ID/slug どちらでもOKにしているならルートモデルに合わせて） ─────
@@ -38,9 +48,21 @@ Route::prefix('admin')->group(function () {
     Route::put   ('/blocks/{id}',           [SiteBuilderController::class,'updateBlock']);
     Route::delete('/blocks/{id}',           [SiteBuilderController::class,'deleteBlock']);
     Route::post  ('/sites/{id}/publish',    [SiteBuilderController::class,'publish']);
+    Route::post('/upload', function (Request $req) {
+        $req->validate([
+            'file' => ['required','image','max:5120'], // 5MB
+        ]);
+        $path = $req->file('file')->storeAs(
+            'public/site',
+            Str::uuid().'.'.$req->file('file')->extension()
+        );
+        // /storage から配れるように（php artisan storage:link 済み前提）
+        return ['url' => Storage::url($path)];
+    })->middleware('auth');
 });
 
 Route::post('/media', [MediaController::class,'upload']);
+Route::get('/media/{id}', [MediaController::class, 'show']);
 
 // フロントの赤ログ止める用スタブ（必要なら残す）
 Route::get('/appointments/nearby', [AppointmentController::class, 'nearby']);
