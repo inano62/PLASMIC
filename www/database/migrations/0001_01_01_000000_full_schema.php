@@ -92,6 +92,8 @@ return new class extends Migration {
         // 3) tenants（users を参照するので users の後）
         Schema::create('tenants', function (Blueprint $t) {
             $t->id();
+            $t->string('slug')->nullable();
+            $t->string('key')->nullable();
             $t->foreignId('owner_user_id')->constrained('users');
             $t->string('display_name');
             $t->string('stripe_customer_id')->nullable();

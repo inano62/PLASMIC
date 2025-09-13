@@ -8,6 +8,7 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Firebase\JWT\JWT;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Schema;
 use Firebase\JWT\Key;
 use App\Models\Appointment;   // ★ 追加
 use App\Models\Reservation;   // 使っていれば残す
@@ -30,67 +31,73 @@ class AppointmentController extends Controller
      * 返却:
      *   [{ date: "YYYY-MM-DD", slots: [ISO8601, ...] }, ...]
      */
-    public function publicSlots(Request $r, int $tenant)
+    public function publicSlots(Request $r, $tenant) // ← int は外す（slug/ID 両対応）
     {
-        $lawyerId = (int) $r->query('lawyer_id');
-        abort_unless($lawyerId, 400, 'lawyer_id is required');
+        $tenantId = resolveTenantId($tenant);
 
-        $days     = min((int) $r->query('days', 5), 31);
+        $lawyerId = (int) $r->query('lawyer_id', 1);  // ← 任意に
+        $days     = min((int) $r->query('days', 14), 31);
         $step     = (int) $r->query('step', 30);
         $duration = (int) $r->query('duration', 30);
         $openStr  = $r->query('open',  '09:00');
         $closeStr = $r->query('close', '17:00');
 
-        $now   = now(); // app.timezone
-        $out   = [];
+        $now  = now()->timezone(config('app.timezone'));
+        $apps = collect();
 
-        for ($i = 0; $i < $days; $i++) {
-            $day       = $now->copy()->startOfDay()->addDays($i);
-            $dayStart  = $day->copy()->setTimeFromTimeString($openStr);
-            $dayEnd    = $day->copy()->setTimeFromTimeString($closeStr);
+        // 予約テーブルが未整備でも落ちないように
+        if (Schema::hasTable('appointments') &&
+            Schema::hasColumn('appointments','tenant_id') &&
+            Schema::hasColumn('appointments','lawyer_user_id') &&
+            Schema::hasColumn('appointments','starts_at') &&
+            Schema::hasColumn('appointments','ends_at') &&
+            Schema::hasColumn('appointments','status')) {
+            $rangeStart = $now->copy()->startOfDay();
+            $rangeEnd   = $rangeStart->copy()->addDays($days)->endOfDay();
 
-            // その日の予約を取得（重なり検出用に starts/ends を取得）
-            $apps = Appointment::query()
-                ->where('tenant_id', $tenant)
+            $apps = \App\Models\Appointment::query()
+                ->where('tenant_id', $tenantId)
                 ->where('lawyer_user_id', $lawyerId)
-                ->whereIn('status', ['booked','pending']) // pending も塞ぐならここに含める
-                // 端がはみ出す予約も拾いたいので範囲に少し余白を付ける
-                ->where(function ($q) use ($dayStart, $dayEnd) {
-                    $q->whereBetween('starts_at', [$dayStart->copy()->subHour(), $dayEnd->copy()->addHour()])
-                        ->orWhereBetween('ends_at',   [$dayStart->copy()->subHour(), $dayEnd->copy()->addHour()])
-                        ->orWhere(function ($q2) use ($dayStart, $dayEnd) {
-                            // 予約がこの日の全体を覆う場合
-                            $q2->where('starts_at', '<=', $dayStart)
-                                ->where('ends_at',   '>=', $dayEnd);
+                ->whereIn('status', ['booked','pending'])
+                ->where(function($q) use($rangeStart,$rangeEnd){
+                    $q->whereBetween('starts_at', [$rangeStart,$rangeEnd])
+                        ->orWhereBetween('ends_at',   [$rangeStart,$rangeEnd])
+                        ->orWhere(function($q2) use($rangeStart,$rangeEnd){
+                            $q2->where('starts_at','<=',$rangeStart)->where('ends_at','>=',$rangeEnd);
                         });
                 })
                 ->get(['starts_at','ends_at']);
-
-            $slots = [];
-            for ($t = $dayStart->copy(); $t->lt($dayEnd); $t->addMinutes($step)) {
-                $s = $t->copy();
-                $e = $t->copy()->addMinutes($duration);
-
-                // 過去の枠は非表示（数分のバッファ）
-                if ($s->lt($now->copy()->addMinutes(5))) continue;
-
-                // どれかの予約と重なっていれば除外
-                $overlap = $apps->contains(function ($ap) use ($s, $e) {
-                    // [s,e) と [ap.start, ap.end) のオーバーラップ判定
-                    return $s->lt($ap->ends_at) && $e->gt($ap->starts_at);
-                });
-                if (!$overlap) {
-                    $slots[] = $s->toIso8601String(); // フロントは ISO で受ける想定
-                }
-            }
-
-            $out[] = [
-                'date'  => $day->format('Y-m-d'),
-                'slots' => $slots,
-            ];
         }
 
-        return response()->json($out);
+        $out = [];
+        for ($i=0; $i<$days; $i++) {
+            $day      = $now->copy()->startOfDay()->addDays($i);
+            $dayStart = $day->copy()->setTimeFromTimeString($openStr);
+            $dayEnd   = $day->copy()->setTimeFromTimeString($closeStr);
+
+            $slots = [];
+            for ($t=$dayStart->copy(); $t->lt($dayEnd); $t->addMinutes($step)) {
+                $s = $t->copy(); $e = $t->copy()->addMinutes($duration);
+                if ($s->lt($now->copy()->addMinutes(5))) continue;
+                $overlap = $apps->contains(fn($ap)=> $s->lt($ap->ends_at) && $e->gt($ap->starts_at));
+                if (!$overlap) $slots[] = $s->toIso8601String();
+            }
+
+            $out[] = ['date'=>$day->toDateString(), 'slots'=>$slots];
+        }
+
+        $days = collect($out)->map(fn($d) => [
+            'date'  => $d['date'],
+            // フロント互換（旧UIが読む）
+            'times' => $d['slots'],
+            // 新UI向け（自分たちの新実装）
+            'slots' => $d['slots'],
+        ])->values();
+
+        return response()->json([
+            'tenant' => $tenantId,
+            'days'   => $days,
+        ]);
     }
     public function resolve(Request $req)
     {
@@ -303,23 +310,6 @@ class AppointmentController extends Controller
         ]);
     }
 
-    public function storeFromTenantPrefixed(array $data)
-    {
-        // $data['tenant_id'] はルート側で注入済み
-        // 既存の store() のバリデーション/保存処理を流用
-        $req = new \Illuminate\Http\Request($data);
-        return $this->store($req); // 既存の store(Request $request) を再利用
-    }
-
-    public function myByVisitor(\Illuminate\Http\Request $req, \App\Models\Tenant $tenant)
-    {
-        $vid = $req->query('visitor_id');
-        if (!$vid) return response()->json([]);
-        $rows = \App\Models\Appointment::where('tenant_id',$tenant->id)
-            ->where('visitor_id',$vid)->orderByDesc('starts_at')->limit(1)->get();
-        return response()->json($rows);
-    }
-
     public function myForTenant(Request $req, string $tenant) {
         $tenantId  = resolveTenantId($tenant);
         $visitorId = $req->query('visitor_id');
@@ -364,4 +354,20 @@ class AppointmentController extends Controller
             'hostJoinPath'  => "/host?aid={$a->id}&room={$a->room_name}",
         ], 201);
     }
+    // AppointmentController.php
+    public function upcomingForTenant(Request $r, int $tenant) {
+        $lawyerId = (int) $r->query('lawyer_id', 1);
+        $days = min((int)$r->query('days',14), 60);
+        $from = now()->subMinutes(5);
+        $to   = now()->addDays($days);
+
+        return \App\Models\Appointment::query()
+            ->where('tenant_id', $tenant)
+            ->where('lawyer_user_id',$lawyerId)
+            ->whereBetween('starts_at', [$from,$to])
+            ->where('status','booked')
+            ->orderBy('starts_at')
+            ->get(['id','starts_at','room_name as room']);
+    }
+
 }

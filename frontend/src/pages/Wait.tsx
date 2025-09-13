@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
-import API from "../lib/api";
+// ✅ 必要なものだけ import
+import API from "@/lib/api";
+
 
 type S = { room?: string; token?: string; url?: string; err?: string };
 

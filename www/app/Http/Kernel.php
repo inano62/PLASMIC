@@ -6,7 +6,6 @@ use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
 class Kernel extends HttpKernel
 {
-    // これ！
     protected $middlewareAliases = [
         // 既存のエイリアス群...
         'site.entitled' => \App\Http\Middleware\EnsureSiteBuilderEntitled::class,
@@ -14,5 +13,11 @@ class Kernel extends HttpKernel
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
+    ];
+    protected $middleware = [
+        // これがあること（Laravel10は Fruitcake、11は Illuminate でもOK）
+        \Fruitcake\Cors\HandleCors::class,
+        // or
+        // \Illuminate\Http\Middleware\HandleCors::class,
     ];
 }

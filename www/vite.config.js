@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
     plugins: [
@@ -12,9 +13,10 @@ export default defineConfig({
     server: {
         port: 5176,
         strictPort: true,
-        host: "localhost",
+        host: 'localhost',
         proxy: {
-            '/api':     {  target: 'http://localhost:8000', changeOrigin: true, rewrite: p => p      ,},
+            // フロントからは /api/... で呼ぶこと！
+            '/api':     { target: 'http://localhost:8000', changeOrigin: true },
             '/sanctum': { target: 'http://localhost:8000', changeOrigin: true },
             '/login':   { target: 'http://localhost:8000', changeOrigin: true },
             '/logout':  { target: 'http://localhost:8000', changeOrigin: true },

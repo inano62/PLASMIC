@@ -28,11 +28,33 @@ Route::prefix('public')->group(function () {
     Route::get('/sites/{slug}',       [PublicSiteApiController::class, 'site']);
     Route::get('/sites/{slug}/page',  [PublicSiteApiController::class, 'page']);
     Route::get('/tenants',            [PublicController::class, 'tenants']);
-    Route::get('/tenants/resolve',    [PublicController::class, 'resolveTenant']);
+    Route::get('/tenants/resolve',    [PublicController::class, 'resolve']);
     Route::get('/tenants/{tenant}/pros',  [PublicController::class, 'pros']);
-    Route::get('/tenants/{tenant}/slots', [TimeslotController::class, 'listOpen']);
     Route::get('/sites/by-slug/{slug}', [PublicSiteController::class, 'showBySlug']);
+    Route::get('/tenants/{tenant}/slots', [AppointmentController::class,'publicSlots']);
+    Route::get('/tenants/{tenant}/upcoming', [AppointmentController::class,'upcomingForTenant']);
+
+    Route::get('/tenants/resolve', function (Request $r) {
+        $key  = $r->query('key');
+        $slug = $r->query('slug');
+        abort_if(!$key && !$slug, 400, 'key or slug is required');
+
+        $q = \App\Models\Tenant::query();
+        if ($slug && \Illuminate\Support\Facades\Schema::hasColumn('tenants','slug')) {
+            $q->where('slug', $slug);
+        }
+        if ($key) {
+            $q->orWhere('key', $key);
+        }
+
+        $t = $q->firstOrFail();
+        return response()->json([
+            'id'           => (int)$t->id,
+            'display_name' => $t->display_name ?? $t->name,
+        ]);
+    });
 });
+
 
 // ───── テナント配下（ID/slug どちらでもOKにしているならルートモデルに合わせて） ─────
 Route::prefix('tenants/{tenant}')->group(function () {
