@@ -1,6 +1,6 @@
 // src/components/admin/IntakePanel.tsx
 import { useState } from "react";
-import API from "../../lib/api.ts";
+import API from "../../lib/api";
 
 type Msg = { id:number; from:"client"|"admin"|"system"; text:string; at:string };
 type Inquiry = {
@@ -27,29 +27,37 @@ export default function IntakePanel() {
         { id: 1, from: "client", text: inq.message, at: new Date().toISOString() },
     ]);
     const [draft, setDraft] = useState("");
-
+    const [invite, setInvite] = useState<{host:string;guest:string}|null>(null);
     const add = (m: Msg) => setMsgs((x) => [...x, m]);
-    const send = (text: string, from: Msg["from"] = "admin") => {
+    const send = (text: string, from: Msg["from"] = "admin") =>
         add({ id: Date.now(), from, text, at: new Date().toISOString() });
-    };
 
     const decline = () => {
         setInq((s) => ({ ...s, status: "declined" }));
         send(templates.decline, "admin");
     };
-// 上の const approve = () => {...} は削除
-    const [invite, setInvite] = useState<{host:string;guest:string}|null>(null);
 
     async function approve() {
-        setInq(s=>({...s,status:"approved"}));
-        const cu = await API.post("/clients/upsert",{name: inq.name, email: inq.email}).then(r=>r.json());
-        const res = await API.post("/appointments/instant",{
-            tenant_id: 1, lawyer_user_id: 1, client_user_id: cu.user_id
-        }).then(r=>r.json());
-        setInvite({ host: res.hostJoinPath, guest: res.clientJoinPath });
-        send("面談にお進みいただけます。招待リンクを発行しました。","system");
+        try {
+            setInq((s) => ({ ...s, status: "approved" }));
+            // 顧客 upsert
+            const cu = await API.post<{ user_id:number }>("clients/upsert", {
+                name: inq.name,
+                email: inq.email,
+            });
+            // 即時面談の予約を作成
+            const res = await API.post<{ hostJoinPath:string; clientJoinPath:string }>(
+                "appointments/instant",
+                { tenant_id: 1, lawyer_user_id: 1, client_user_id: cu.user_id }
+            );
+            setInvite({ host: res.hostJoinPath, guest: res.clientJoinPath });
+            send("面談にお進みいただけます。招待リンクを発行しました。", "system");
+        } catch (e:any) {
+            console.error(e);
+            setInq((s) => ({ ...s, status: "new" }));
+            send("面談作成に失敗しました。時間をおいて再試行してください。", "system");
+        }
     }
-
 
     return (
         <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -63,8 +71,8 @@ export default function IntakePanel() {
 
             {/* タイムライン */}
             <div className="intake-timeline border rounded p-3 mb-3">
-                {msgs.map(m=>(
-                    <div className={`mb-2 ${m.from==="admin" ? "text-end": ""}`}>
+                {msgs.map((m) => (
+                    <div key={m.id} className={`mb-2 ${m.from === "admin" ? "text-end" : ""}`}>
                         <div className={`intake-bubble ${m.from}`}>
                             <div className="small">{m.text}</div>
                         </div>
@@ -74,26 +82,60 @@ export default function IntakePanel() {
 
             {/* 入力 & クイック返信 */}
             <div className="d-flex gap-2 mb-2">
-                <input className="form-control flex-grow-1" style={{minWidth:0}} value={draft} onChange={e=>setDraft(e.target.value)} placeholder="返信を入力…" />
-                <button className="btn btn-primary flex-shrink-0" onClick={()=>{ if(!draft) return; send(draft,"admin"); setDraft(""); }}>送信</button>
+                <input
+                    className="form-control flex-grow-1"
+                    style={{ minWidth: 0 }}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="返信を入力…"
+                />
+                <button
+                    className="btn btn-primary flex-shrink-0"
+                    onClick={() => {
+                        if (!draft) return;
+                        send(draft, "admin");
+                        setDraft("");
+                    }}
+                >
+                    送信
+                </button>
             </div>
-            <div className="intake-quick  d-flex flex-wrap gap-2 mb-3">
-                <button className="btn btn-outline-secondary btn-sm" onClick={()=>send(templates.askMore,"admin")}>追加質問</button>
-                <button className="btn btn-outline-success btn-sm" onClick={()=>send(templates.approve,"admin")}>面談案内</button>
+            <div className="intake-quick d-flex flex-wrap gap-2 mb-3">
+                <button className="btn btn-outline-secondary btn-sm" onClick={() => send(templates.askMore, "admin")}>
+                    追加質問
+                </button>
+                <button className="btn btn-outline-success btn-sm" onClick={() => send(templates.approve, "admin")}>
+                    面談案内
+                </button>
                 <button className="btn btn-outline-danger btn-sm" onClick={decline}>丁寧にお断り</button>
-                <button className="btn btn-outline-dark btn-sm" onClick={()=>setInq(s=>({...s,status:"spam"}))}>冷やかし</button>
+                <button className="btn btn-outline-dark btn-sm" onClick={() => setInq((s) => ({ ...s, status: "spam" }))}>
+                    冷やかし
+                </button>
             </div>
 
-            <div className="d-flex gap-2">
-                <button className="btn btn-success" disabled={inq.status==="approved"} onClick={approve}>面談へ進める</button>
-                <a className="btn btn-outline-primary" href={`/host?aid=${inq.id}`} target="_blank" rel="noreferrer">今すぐビデオ</a>
+            <div className="d-flex flex-wrap gap-2 align-items-center">
+                <button className="btn btn-success" disabled={inq.status === "approved"} onClick={approve}>
+                    面談へ進める
+                </button>
+
+                {/* 予約ができたらホスト用リンクを活性化 */}
+                <a
+                    className={`btn btn-outline-primary ${invite ? "" : "disabled"}`}
+                    href={invite?.host || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-disabled={!invite}
+                    title={invite ? "" : "まず「面談へ進める」で予約を作成してください"}
+                >
+                    今すぐビデオ
+                </a>
+
                 {invite && (
-                    <div className="alert alert-info mt-2">
-                        <div>ホスト用: <a href={invite.host} target="_blank">{invite.host}</a></div>
-                        <div>ゲスト用: <a href={invite.guest} target="_blank">{invite.guest}</a></div>
+                    <div className="alert alert-info mt-2 w-100">
+                        <div>ホスト用: <a href={invite.host} target="_blank" rel="noreferrer">{invite.host}</a></div>
+                        <div>ゲスト用: <a href={invite.guest} target="_blank" rel="noreferrer">{invite.guest}</a></div>
                     </div>
                 )}
-
             </div>
         </div>
     );

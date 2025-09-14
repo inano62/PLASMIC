@@ -125,7 +125,7 @@ export default function Builder() {
                            onChange={e=>setSite({...site!, slug:e.target.value})}/>
                 </div>
                 <Button className="ms-auto" onClick={saveSite}>保存</Button>
-                <Button variant="outline-primary" onClick={publishAndOpen}>公開ページで確認</Button>
+                {/*<Button variant="outline-primary" onClick={publishAndOpen}>公開ページで確認</Button>*/}
             </div>
 
             {/* ページ外の操作（currentPage を使う） */}

@@ -70,7 +70,6 @@ export default function PublicSite() {
     if (!data) return <div style={{ padding: 24 }}>読み込み中…</div>;
     const heroBlock = data.page.blocks.find(b => String(b.type).toLowerCase() === "hero");
     const heroImgUrl: string | undefined = heroBlock?.data?.imgUrl;
-console.log(heroImgUrl)
 
     return (
         <div className="relative isolate">

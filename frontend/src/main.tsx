@@ -19,7 +19,7 @@ import Host from "./pages/Host";
 import Quick from "./pages/Quick";
 import AdminLogin from "./pages/admin/Login";
 import AdminLayout from "./pages/admin/_layout";
-import AdminDashboard from "./pages/admin/Dashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminCharts from "./pages/admin/Charts";
 import AdminTables from "./pages/admin/Tables";
 import AdminSiteBuilder from "./pages/admin/site/Builder";

@@ -1,6 +1,5 @@
-import React ,{ useState }from "react";
-import type { CtaData } from "./types";
-
+// frontend/src/components/site/ContactForm.tsx
+import { useState } from "react";
 import API from "../../lib/api"; // 既存の API ヘルパ（VITE_API_BASE を使うやつ）
 
 export default function ContactForm({ siteSlug = "demo" }: { siteSlug?: string }) {

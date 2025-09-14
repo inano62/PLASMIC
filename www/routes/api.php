@@ -90,7 +90,11 @@ Route::post('/media', [MediaController::class,'upload']);
 Route::get('/media/{id}', [MediaController::class, 'show']);
 
 // フロントの赤ログ止める用スタブ（必要なら残す）
-Route::get('/appointments/nearby', [AppointmentController::class, 'nearby']);
+Route::prefix('appointments')->group(function () {
+    Route::get('nearby', [AppointmentController::class, 'nearby']); // 既存
+    Route::get('{id}',   [AppointmentController::class, 'show'])
+        ->whereNumber('id'); // ← これ大事
+});
 Route::middleware('auth:sanctum')->get('/whoami', fn() =>
 response()->json(['user' => auth()->user()?->only('id','name','email')])
 );
@@ -103,7 +107,10 @@ Route::post('/appointments',          [AppointmentController::class,'store']);
 Route::get ('/appointments/{id}',     [AppointmentController::class,'show']);
 Route::post('/appointments/{id}/ticket',[AppointmentController::class,'issueTicket']);
 Route::get ('/appointments/upcoming', [AppointmentController::class,'upcomi']);
-
+Route::post('/inquiries', [PublicSiteController::class, 'storeInquiry']);
+Route::get('/inquiries', [PublicSiteController::class, 'index']);          // 管理画面用: 新着一覧
+Route::get('/inquiries/{id}', [PublicSiteController::class, 'show']);      // 詳細
+Route::patch('/inquiries/{id}', [PublicSiteController::class, 'update']);
 
 Route::post('/auth/token', function (Request $r) {
     $cred = $r->validate(['email'=>'required|email','password'=>'required']);

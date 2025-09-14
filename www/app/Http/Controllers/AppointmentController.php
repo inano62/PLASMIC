@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
 use Firebase\JWT\Key;
 use App\Models\Appointment;   // ★ 追加
 use App\Models\Reservation;   // 使っていれば残す
-
+use Illuminate\Support\Facades\Mail;
 
 class AppointmentController extends Controller
 {
@@ -154,43 +154,86 @@ class AppointmentController extends Controller
     }
 
     public function show(int $id) {
-        $site = Site::find($id);
-        if (!$site) {
-            $site = new Site();
-            // $site->id = $id; // ← SQLite の AUTOINCREMENT を尊重したいならセットしないでOK
-            $site->title = 'Demo Site';
-            $site->slug  = 'demo';
-            $site->meta  = ['theme' => 'default'];
-            $site->save();
+//        $site = Site::find($id);
+//        if (!$site) {
+//            $site = new Site();
+//            // $site->id = $id; // ← SQLite の AUTOINCREMENT を尊重したいならセットしないでOK
+//            $site->title = 'Demo Site';
+//            $site->slug  = 'demo';
+//            $site->meta  = ['theme' => 'default'];
+//            $site->save();
+//
+//            // Home ページを1枚作る
+//            $p = new Page();
+//            $p->site_id = $site->id;
+//            $p->title   = 'Home';
+//            $p->path    = '/';
+//            $p->sort    = 1;
+//            $p->save();
+//        }
+//
+//        $pages = Page::where('site_id', $site->id)
+//            ->orderBy('sort')
+//            ->with(['blocks' => function($q){ $q->orderBy('sort'); }])
+//            ->get();
+//
+//        return response()->json(['site' => $site, 'pages' => $pages]);
+        $ap = DB::table('appointments as a')
+            ->leftJoin('users as u', 'u.id', '=', 'a.client_user_id')
+            ->selectRaw('
+            a.id,
+            a.starts_at,
+            COALESCE(a.client_name, u.name)  as client_name,
+            COALESCE(a.client_email, u.email) as client_email
+        ')
+            ->where('a.id', $id)
+            ->first();
 
-            // Home ページを1枚作る
-            $p = new Page();
-            $p->site_id = $site->id;
-            $p->title   = 'Home';
-            $p->path    = '/';
-            $p->sort    = 1;
-            $p->save();
+        if (!$ap) {
+            return response()->json(['message' => 'Not found'], 404);
         }
 
-        $pages = Page::where('site_id', $site->id)
-            ->orderBy('sort')
-            ->with(['blocks' => function($q){ $q->orderBy('sort'); }])
-            ->get();
+        $rawStarts = $ap->starts_at ?? $ap->start_at ?? $ap->scheduled_at ?? null;
+        $startsIso = $rawStarts ? \Carbon\Carbon::parse($rawStarts)->toIso8601String() : null;
 
-        return response()->json(['site' => $site, 'pages' => $pages]);
+        // DB に列が無いのでその場で生成（相対パスで返す）
+        $hostJoinPath   = "/host?aid={$ap->id}";
+        $clientJoinPath = "/wait?aid={$ap->id}";
+
+        return response()->json([
+            'id'             => $ap->id,
+            'client_name'    => $ap->client_name,
+            'client_email'   => $ap->client_email,
+            'starts_at'      => $startsIso,
+            'hostJoinPath'   => $hostJoinPath,
+            'clientJoinPath' => $clientJoinPath,
+        ]);
     }
 
     // 直近60分（士業ダッシュボード）
     public function nearby(Request $r) {
-        $lawyerId = (int) $r->query('lawyer_id', 1);
-        $from = now()->subMinutes(5);
-        $to   = now()->addMinutes(60);
+        $from = now()->startOfDay();
+        $to   = now()->addDays(7)->endOfDay();
 
-        $rows = Appointment::where('lawyer_user_id',$lawyerId)
-            ->whereBetween('starts_at', [$from,$to])
-            ->where('status','booked')
-            ->orderBy('starts_at')
-            ->get(['id','starts_at','room_name as room']);
+        $q = Appointment::query()
+            ->whereBetween('starts_at', [$from, $to])
+            ->orderBy('starts_at');
+
+        // （必要なら）ログイン中の士業に絞る
+        if ($r->user()?->id && \Schema::hasColumn('appointments','lawyer_id')) {
+            $q->where('lawyer_id', $r->user()->id);
+        }
+
+        $rows = $q->get()->map(function ($a) {
+            return [
+                'id'        => (int) $a->id,
+                'client'    => $a->client_name,
+                'starts_at' => $a->starts_at?->timezone('Asia/Tokyo')->toIso8601String(),
+                'room'      => $a->room_name,
+                'hostUrl'   => "/host?aid={$a->id}&room={$a->room_name}",
+                'guestUrl'  => "/wait?aid={$a->id}&room={$a->room_name}",
+            ];
+        });
 
         return response()->json($rows);
     }
@@ -347,7 +390,19 @@ class AppointmentController extends Controller
             'purpose_title'  => $req->input('purpose_title', 'オンライン相談'),
             'purpose_detail' => $req->input('purpose_detail'),
         ]);
+        $guestUrl = url($a->clientJoinPath ?? "/wait?room={$a->room_name}");
+        $hostUrl  = url($a->hostJoinPath   ?? "/host?aid={$a->id}&room={$a->room_name}");
 
+        if ($req->filled('client_email')) {
+            Mail::raw(
+                "予約が確定しました。\n開始: {$starts->format('Y-m-d H:i')}\n入室URL: {$a->clientJoinPath}",
+                fn($m)=>$m->to($a->client_email)->subject('【予約確認】オンライン面談のご案内')
+            );
+            Mail::raw(
+                "新規予約です。\n開始: {$starts->format('Y-m-d H:i')}\nホストURL: {$a->hostJoinPath}",
+                fn($m)=>$m->to('office@example.com')->subject('【新規予約】対応お願いします')
+            );
+        }
         return response()->json([
             'appointmentId' => (string)$a->id,
             'clientJoinPath'=> "/wait?room={$a->room_name}",

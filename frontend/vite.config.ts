@@ -28,7 +28,8 @@ export default defineConfig({
                 proxy.on('proxyReq', (_, req) => console.log('[vite-proxy] ->', req.url))
                 proxy.on('proxyRes', (_, req) => console.log('[vite-proxy] <-', req.url))
             },
-        }
+        },
+        '/sanctum': { target: 'http://localhost:8000', changeOrigin: true },
     },
   },
     resolve: {
