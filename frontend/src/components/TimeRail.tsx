@@ -1,4 +1,4 @@
-// components/TimeRail.tsx
+//components/TimeRail.tsx
 export function TimeRail({ open="09:00", close="17:00", step=30 }) {
     const [oh, om] = open.split(":").map(Number);
     const [ch, cm] = close.split(":").map(Number);

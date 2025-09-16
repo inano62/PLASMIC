@@ -1,8 +1,10 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\{PublicSiteApiController,
+use App\Http\Controllers\{
+    PublicSiteApiController,
     PublicSiteController,
+    SettingsController,
     SiteBuilderController,
     PublishController,
     PublicController,
@@ -13,7 +15,9 @@ use App\Http\Controllers\{PublicSiteApiController,
     ReservationController,
     StripeController,
     ClientController,
-    MediaController};
+    TenantController,
+    MediaController
+};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -54,13 +58,13 @@ Route::prefix('public')->group(function () {
         ]);
     });
 });
-
+Route::get('/public/tenants/list', [TenantController::class, 'index']);
 
 // ───── テナント配下（ID/slug どちらでもOKにしているならルートモデルに合わせて） ─────
 Route::prefix('tenants/{tenant}')->group(function () {
     Route::get('/availability',       [TimeslotController::class, 'listOpenForTenant']);
     Route::get('/my/appointments',    [AppointmentController::class, 'myForTenant']); // or myByVisitor
-    Route::post('/appointments',      [AppointmentController::class, 'storeForTenant']);
+    Route::any('/appointments',      [AppointmentController::class, 'storeForTenant']);
 });
 // ───── Builder 管理API（Sanctum） ─────
 Route::prefix('admin')->group(function () {
@@ -111,7 +115,7 @@ Route::post('/inquiries', [PublicSiteController::class, 'storeInquiry']);
 Route::get('/inquiries', [PublicSiteController::class, 'index']);          // 管理画面用: 新着一覧
 Route::get('/inquiries/{id}', [PublicSiteController::class, 'show']);      // 詳細
 Route::patch('/inquiries/{id}', [PublicSiteController::class, 'update']);
-
+Route::get('/settings', [SettingsController::class, 'show']);
 Route::post('/auth/token', function (Request $r) {
     $cred = $r->validate(['email'=>'required|email','password'=>'required']);
     if (!Auth::attempt($cred)) {

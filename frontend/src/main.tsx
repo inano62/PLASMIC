@@ -5,14 +5,13 @@ import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-rou
 
 import { setToken } from "@/lib/api";
 import { ADMIN_TOKEN_KEY } from "./lib/auth";
-
 const token = import.meta.env.VITE_API_TOKEN ?? null;
 setToken(token || null);
 if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
 
 // 画面
 import SiteLayout from "./layouts/SiteLayout";
-import Home from "./pages/PlasmicLanding";
+// import Home from "./pages/PlasmicLanding";
 import Join from "./pages/Join";
 import Wait from "./pages/Wait";
 import Host from "./pages/Host";
@@ -26,6 +25,9 @@ import AdminSiteBuilder from "./pages/admin/site/Builder";
 import Reserve from "./pages/PublicReserve";     // 予約フォーム（共通）
 import ReservePage from "./pages/ReservePage";   // /:tenant/reserve 用
 import PublicSite from "./public/PublicSite";    // 先生サイト
+import PlasmicLanding from "./features/landing/PlasmicLanding.tsx";
+import Offices from "./pages/Offices";
+import TenantHome from "./pages/TenantHome";
 
 import "./App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -42,6 +44,7 @@ function RequireAdmin() {
 }
 
 const router = createBrowserRouter([
+
     // ✅ ここを“1個上”に出す（SiteLayoutの外側）
     { path: "/s/:slug/*", element: <PublicSite /> },
     // 先生サイト配下の予約にしたいならこれも直下で OK
@@ -51,9 +54,11 @@ const router = createBrowserRouter([
         path: "/",
         element: <SiteLayout />,
         children: [
-            { index: true, element: <Home /> },
+            { index: true, element: <PlasmicLanding /> },
             { path: "reserve", element: <Reserve /> },            // 共通予約（slug なしのとき）
+            { path: "Offices", element: <Offices /> },            // 共通予約（slug なしのとき）
             { path: ":tenant/reserve", element: <ReservePage /> },
+            { path: "tenants/:slug", element: <TenantHome /> },
             { path: "wait", element: <Wait /> },
             { path: "host", element: <Host /> },
             { path: "join", element: <Join /> },

@@ -9,8 +9,15 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            SettingsSeeder::class, // 設定
-            DevSeeder::class,      // 開発用データ（ユーザー/テナント/紐づけ）
+            PlansSeeder::class,
+            UsersSeeder::class,
+            TenantsSeeder::class,
+            TenantUsersSeeder::class,
+            SiteSettingsSeeder::class,
+            SubscriptionsSeeder::class,
+            TimeslotsSeeder::class,
+            ReservationsSeeder::class,
+            InquiriesSeeder::class,
         ]);
     }
 }
