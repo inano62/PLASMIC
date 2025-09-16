@@ -1,94 +1,141 @@
 // src/lib/api.ts
 let TOKEN: string | null = null;
 
-// --- Base URL を env 優先で決定 --------------------------------------
-// 例）VITE_API_BASE=http://localhost:8000/api  -> API_BASE='http://localhost:8000/api'
-//     未設定                                   -> API_BASE='/api'
-const RAW_BASE = (import.meta.env.VITE_API_BASE ?? '/api').trim();
-export const API_BASE = RAW_BASE.replace(/\/$/, '');         // 末尾スラッシュ除去
-const API_ROOT = API_BASE.replace(/\/api$/, '');              // '/api' を落としてルートを得る（'' or 'http://localhost:8000'）
+/** ===== Base URL（相対で使う） ======================================= */
+const RAW_BASE = (import.meta.env.VITE_API_BASE ?? "/api").trim();
+export const API_BASE = RAW_BASE.replace(/\/$/, "");            // -> "/api"
+export const API_ROOT = "";                                     // 絶対URLは使わない（Vite proxy 前提）
 
 export function setToken(token: string | null) { TOKEN = token; }
 
 function buildUrl(path: string) {
-    const p = path.startsWith('/') ? path.slice(1) : path;
-    return `${API_BASE}/${p}`;
+    const p = path.startsWith("/") ? path.slice(1) : path;
+    return `${API_BASE}/${p}`; // -> "/api/xxx"
 }
 
-// 共通設定（Sanctum用 Cookie をやり取りする）
-const COMMON: RequestInit = { credentials: 'include' };
+const COMMON: RequestInit = { credentials: "include" };
 
-// Sanctum の CSRF Cookie を API の「ルート」から取得する
+/** ===== CSRF ======================================================== */
 async function ensureCsrf() {
-    // 例）相対モード: API_ROOT === '' -> '/sanctum/csrf-cookie'
-    //     絶対モード: API_ROOT === 'http://localhost:8000' -> 'http://localhost:8000/sanctum/csrf-cookie'
-    const url = `${API_ROOT}/sanctum/csrf-cookie`;
-    await fetch(url, COMMON);
+    // 相対パスで取得（Vite proxy が :8000 に中継する）
+    await fetch(`/sanctum/csrf-cookie`, { credentials: "include" });
 }
 
-async function request<T>(path: string, init: RequestInit) {
+function xsrfFromCookie() {
+    const m = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+}
+
+/** ===== ユーティリティ: JSON POST（相対パスのみ） ================== */
+/** web直用（/register, /login など）。必ず相対パス `/xxx` を渡す */
+async function postJsonRelative<T>(path: string, body: any): Promise<T> {
+    await ensureCsrf();
+
     const headers: Record<string, string> = {
-        Accept: 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
+    };
+
+    const xsrf = xsrfFromCookie();
+    if (xsrf) headers["X-XSRF-TOKEN"] = xsrf;
+
+    const url = path.startsWith("/") ? path : `/${path}`;
+
+    const res = await fetch(url, {
+        ...COMMON,
+        method: "POST",
+        headers,
+        body: JSON.stringify(body ?? {}),
+    });
+
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json")
+        ? await res.json().catch(() => null)
+        : await res.text().catch(() => null);
+
+    if (!res.ok) {
+        const err: any = new Error(typeof data === "string" ? data : data?.message || res.statusText);
+        err.status = res.status;
+        err.data = data;
+        throw err;
+    }
+    return data as T;
+}
+
+/** ===== /api 配下（Sanctum 保護の JSON API） ======================= */
+async function request<T>(path: string, init: RequestInit = {}) {
+    const method = (init.method ?? "GET").toUpperCase();
+
+    // 初回以降でも安全（Cookieが無ければ付与されるだけ）
+    await ensureCsrf();
+
+    const headers: Record<string, string> = {
+        Accept: "application/json",
         ...(init.headers as Record<string, string> | undefined),
     };
 
     const isForm = init.body instanceof FormData;
     if (!isForm && init.body !== undefined) {
-        headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
+        headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
     }
-    if (TOKEN) headers['Authorization'] = `Bearer ${TOKEN}`;
 
-    // 変更があるメソッドの時は毎回 CSRF を確実に取る（GET でも取っても害はない）
-    await ensureCsrf();
+    if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
+
+    // XSRF ヘッダは付けられる時だけ付与（GET/HEAD以外）
+    const xsrf = xsrfFromCookie();
+    if (xsrf && method !== "GET" && method !== "HEAD") {
+        headers["X-XSRF-TOKEN"] = xsrf;
+    }
 
     const res = await fetch(buildUrl(path), { ...COMMON, ...init, headers });
-
-    // 可能なら JSON を返す。ダメならテキスト
-    const ct = res.headers.get('content-type') || '';
-    let data: any = null;
-    try {
-        data = ct.includes('application/json') ? await res.json() : await res.text();
-    } catch {}
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json")
+        ? await res.json().catch(() => null)
+        : await res.text().catch(() => null);
 
     if (!res.ok) {
-        const msg = typeof data === 'string' ? data : data?.message || data?.error || res.statusText;
-        throw new Error(msg);
+        const msg = typeof data === "string" ? data : data?.message || res.statusText;
+        const err: any = new Error(msg);
+        err.status = res.status;
+        err.data = data;
+        throw err;
     }
     return data as T;
 }
 
-// ---- 公開 API 関数 ----
-export function get<T = any>(path: string) {
-    return request<T>(path, { method: 'GET' });
-}
-export function post<T = any>(path: string, body?: any) {
-    const isForm = body instanceof FormData;
-    return request<T>(path, { method: 'POST', body: isForm ? body : JSON.stringify(body ?? {}) });
-}
-export function put<T = any>(path: string, body?: any) {
-    const isForm = body instanceof FormData;
-    return request<T>(path, { method: 'PUT', body: isForm ? body : JSON.stringify(body ?? {}) });
-}
-export function patch<T = any>(path: string, body?: any) {
-    const isForm = body instanceof FormData;
-    return request<T>(path, { method: 'PATCH', body: isForm ? body : JSON.stringify(body ?? {}) });
-}
-export function del<T = any>(path: string) {
-    return request<T>(path, { method: 'DELETE' });
-}
-export function upload<T = any>(path: string, form: FormData) {
-    return request<T>(path, { method: 'POST', body: form });
-}
+/** ===== 公開 API ==================================================== */
+export const api = {
+    base: API_BASE,
+    root: API_ROOT,
+    setToken,
 
-// エイリアス（互換維持）
-export const jget = get;
-export const jpost = post;
-export const jput = put;
-export const jpatch = patch;
-export const jdel = del;
-export const jupload = upload;
+    // 汎用 /api JSON
+    get<T = any>(p: string)  { return request<T>(p, { method: "GET" }); },
+    post<T = any>(p: string, body?: any) {
+        const isForm = body instanceof FormData;
+        return request<T>(p, { method: "POST", body: isForm ? body : JSON.stringify(body ?? {}) });
+    },
+    put<T = any>(p: string, body?: any) {
+        const isForm = body instanceof FormData;
+        return request<T>(p, { method: "PUT", body: isForm ? body : JSON.stringify(body ?? {}) });
+    },
+    patch<T = any>(p: string, body?: any) {
+        const isForm = body instanceof FormData;
+        return request<T>(p, { method: "PATCH", body: isForm ? body : JSON.stringify(body ?? {}) });
+    },
+    del<T = any>(p: string)   { return request<T>(p, { method: "DELETE" }); },
 
-// default export
-const API = { base: API_BASE, get, post, put, patch, del, upload, setToken,
-    jget, jpost, jput, jpatch, jdel, jupload };
-export default API;
+    // 認証（web直）
+    async register(payload: any) { return postJsonRelative("/register", payload); },
+    async login(payload: any)    { return postJsonRelative("/login", payload); },
+    async logout()               { return postJsonRelative("/logout", {}); },
+
+    // Billing（/api 側）
+    async checkout(payload: { price_id?: string }) { return api.post<{ url: string }>("/billing/checkout", payload); },
+    async thanks()               { return api.get("/billing/thanks"); },
+
+    // 認証済みユーザー情報
+    async me<T = any>()          { return api.get<T>("/user"); },
+};
+
+export default api;

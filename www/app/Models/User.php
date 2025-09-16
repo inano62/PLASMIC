@@ -7,7 +7,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Stripe\StripeClient;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -18,11 +21,16 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+// app/Models/User.php
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'name','email','password',
+        'stripe_customer_id',
+        'stripe_subscription_id',
+        'subscription_status', // ← これを画面で見たいなら必須
+        'stripe_status',
+        'stripe_default_pm',
     ];
+
 
     /**
      * The attributes that should be hidden for serialization.
@@ -64,4 +72,56 @@ class User extends Authenticatable
             || ($this->role === 'lawyer' && $this->account_type === 'pro');
     }
     public function hasPro(): bool   { return $this->account_type === 'pro' || $this->isAdmin(); }
+    public function signupAndCheckout(Request $req)
+    {
+        $data = $req->validate([
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
+        ]);
+
+        // 1) ユーザーを作成
+        $user = User::create([
+            'name'     => $data['name'],
+            'email'    => $data['email'],
+            'password' => Hash::make($data['password']),
+        ]);
+
+        // 必要ならそのままログイン
+        Auth::login($user);
+
+        // 2) 必要なら Stripe Customer を先に作って保存
+        $stripe = new StripeClient(config('services.stripe.secret'));
+        if (!$user->stripe_customer_id) {
+            $customer = $stripe->customers->create([
+                'email' => $user->email,
+                'name'  => $user->name,
+                'metadata' => ['user_id' => (string)$user->id],
+            ]);
+            $user->stripe_customer_id = $customer->id;
+            $user->save();
+        }
+
+        // 3) Checkout セッションを「作った $user」の ID で作成
+        $session = $stripe->checkout->sessions->create([
+            'mode' => 'subscription',
+            'line_items' => [[
+                'price'    => config('services.stripe.price_id'),
+                'quantity' => 1,
+            ]],
+            'success_url' => url('/billing/success').'?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url'  => url('/billing/cancel'),
+
+            // ここが重要：auth() ではなく $user->id を使う
+            'client_reference_id' => (string) $user->id,
+            'metadata'            => ['user_id' => (string) $user->id],
+            'subscription_data'   => [
+                'metadata' => ['user_id' => (string) $user->id],
+            ],
+
+            'customer' => $user->stripe_customer_id, // 既存カスタマーを使う
+        ]);
+
+        return response()->json(['url' => $session->url]);
+    }
 }

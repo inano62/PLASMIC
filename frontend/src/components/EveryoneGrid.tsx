@@ -1,4 +1,4 @@
-// components/EveryoneGrid.tsx
+//components/EveryoneGrid.tsx
 import { GridLayout, ParticipantTile, useTracks } from "@livekit/components-react";
 import { Track } from "livekit-client";
 

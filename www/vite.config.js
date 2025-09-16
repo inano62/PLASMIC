@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: ['resources/css/app.css', 'resources/js/app.jsx'],
             refresh: true,
         }),
         react(),
@@ -20,8 +20,9 @@ export default defineConfig({
             '/sanctum': { target: 'http://localhost:8000', changeOrigin: true },
             '/login':   { target: 'http://localhost:8000', changeOrigin: true },
             '/logout':  { target: 'http://localhost:8000', changeOrigin: true },
+            '/register': { target: 'http://localhost:8000', changeOrigin: true },
         },
     },
-    build: { outDir: '../public/dist', emptyOutDir: true },
+    build: { outDir: 'public/dist', emptyOutDir: true },
     resolve: { alias: { '@': '/src' } },
 });

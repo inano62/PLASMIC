@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 
 // app/Models/Reservation.php
 class Tenant extends Model {
+
+    protected $fillable = [
+        'slug', 'display_name', 'type', 'region', 'home_url'
+    ];
     protected $guarded = [];
     public function members() {
         return $this->belongsToMany(User::class, 'tenant_users')

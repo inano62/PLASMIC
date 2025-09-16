@@ -1,26 +1,27 @@
 <?php
+// database/migrations/2025_01_01_000000_create_core_tables.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
-        // 1) 基本（jobs / cache / settings など先に作ってもOK）
-        Schema::create('cache', function (Blueprint $t) {
+        /*
+        |--------------------------------------------------------------------------
+        | 基本ユーティリティ（queue / tokens / settings）
+        |--------------------------------------------------------------------------
+        */
+        Schema::create('settings', function (Blueprint $t) {
             $t->string('key')->primary();
-            $t->mediumText('value');
-            $t->integer('expiration');
-        });
-        Schema::create('cache_locks', function (Blueprint $t) {
-            $t->string('key')->primary();
-            $t->string('owner');
-            $t->integer('expiration');
+            $t->text('value')->nullable();
+            $t->timestamps();
         });
 
         Schema::create('jobs', function (Blueprint $t) {
-            $t->id();
+            $t->bigIncrements('id');
             $t->string('queue')->index();
             $t->longText('payload');
             $t->unsignedTinyInteger('attempts');
@@ -50,31 +51,6 @@ return new class extends Migration {
             $t->timestamp('failed_at')->useCurrent();
         });
 
-        Schema::create('settings', function (Blueprint $t) {
-            $t->string('key')->primary();
-            $t->text('value')->nullable();
-            $t->timestamps();
-        });
-
-        // 2) users（ここで role 等も最初から作る＆複合indexを一回で作成）
-        Schema::create('users', function (Blueprint $t) {
-            $t->id();
-            $t->string('name');
-            $t->string('email')->unique();
-            $t->timestamp('email_verified_at')->nullable();
-            $t->string('password');
-            // 追加分（後から ALTER しない）
-            $t->enum('role', ['admin','lawyer','client'])->default('client');
-            $t->string('phone')->nullable();
-            $t->string('account_type', 20)->default('client'); // 'client' | 'pro' | 'admin'
-            $t->string('stripe_customer_id')->nullable()->index();
-            $t->rememberToken();
-            $t->timestamps();
-
-            // 複合 index は “この1回だけ” で作る
-            $t->index(['email','role'], 'users_email_role_index');
-        });
-
         Schema::create('password_reset_tokens', function (Blueprint $t) {
             $t->string('email')->primary();
             $t->string('token');
@@ -88,81 +64,171 @@ return new class extends Migration {
             $t->longText('payload');
             $t->integer('last_activity')->index();
         });
-
-        // 3) tenants（users を参照するので users の後）
-        Schema::create('tenants', function (Blueprint $t) {
+        Schema::create('personal_access_tokens', function (Blueprint $t) {
             $t->id();
-            $t->string('slug')->nullable();
-            $t->string('key')->nullable();
-            $t->foreignId('owner_user_id')->constrained('users');
-            $t->string('display_name');
-            $t->string('stripe_customer_id')->nullable();
-            $t->string('stripe_connect_id')->nullable();
-            $t->string('plan')->default('pro');
+            $t->morphs('tokenable');
+            $t->text('name');
+            $t->string('token', 64)->unique();
+            $t->text('abilities')->nullable();
+            $t->timestamp('last_used_at')->nullable();
+            $t->timestamp('expires_at')->nullable()->index();
             $t->timestamps();
         });
 
-        // 4) appointments（独立）
+        /*
+        |--------------------------------------------------------------------------
+        | 認証 / テナント
+        |--------------------------------------------------------------------------
+        */
+        Schema::create('users', function (Blueprint $t) {
+            $t->id();
+            $t->string('name');
+            $t->string('office_name')->nullable();
+            $t->string('stripe_default_pm')->nullable();
+            $t->string('stripe_customer_id')->nullable()->index();
+            $t->string('stripe_subscription_id')->nullable()->index();
+            $t->string('subscription_status')->nullable()->index();
+            $t->string('stripe_status')->nullable();
+            $t->string('email')->unique();
+            $t->timestamp('email_verified_at')->nullable();
+            $t->string('password');
+            $t->string('phone')->nullable();
+            $t->string('account_type', 20)->default('client');
+            $t->enum('role', ['admin','owner','staff','client'])->default('client')->index();
+            $t->rememberToken();
+            $t->boolean('entitled')->default(false);
+            $t->timestamps();
+            $t->index(['email','role'], 'users_email_role_idx');
+        });
+
+        Schema::create('tenants', function (Blueprint $t) {
+            $t->id();
+            $t->string('slug')->unique();
+            $t->foreignId('owner_user_id')->constrained('users')->cascadeOnDelete();
+            $t->string('display_name');
+            $t->string('type')->nullable();
+            $t->string('region')->nullable();
+            $t->string('home_url')->nullable();
+            $t->string('plan')->default('pro');
+            $t->string('stripe_customer_id')->nullable();
+            $t->string('stripe_connect_id')->nullable();
+            $t->timestamps();
+        });
+
+        Schema::create('tenant_users', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('tenant_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $t->string('role', 20)->default('staff')->index();
+            $t->timestamps();
+            $t->unique(['tenant_id','user_id']);
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | プラン / サブスクリプション
+        |--------------------------------------------------------------------------
+        */
+        Schema::create('plans', function (Blueprint $t) {
+            $t->id();
+            $t->string('code')->unique();
+            $t->string('name');
+            $t->integer('price_month')->nullable();
+            $t->integer('price_year')->nullable();
+            $t->string('stripe_price_id_month')->nullable();
+            $t->string('stripe_price_id_year')->nullable();
+            $t->timestamps();
+        });
+
+        Schema::create('subscriptions', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('tenant_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('plan_id')->nullable()->constrained()->nullOnDelete();
+            $t->string('stripe_sub_id')->nullable()->index();
+            $t->string('status')->default('active');
+            $t->timestamp('current_period_end')->nullable();
+            $t->timestamps();
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | サイト設定
+        |--------------------------------------------------------------------------
+        */
+        Schema::create('site_settings', function (Blueprint $t) {
+            $t->foreignId('tenant_id')->primary()->constrained()->cascadeOnDelete();
+            $t->string('brand_color')->nullable();
+            $t->string('accent_color')->nullable();
+            $t->string('logo_url')->nullable();
+            $t->string('hero_title')->nullable();
+            $t->text('hero_sub')->nullable();
+            $t->string('contact_email')->nullable();
+            $t->boolean('public_on')->default(true);
+            $t->timestamps();
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | 予約 / 面談 / 決済 / 問い合わせ
+        |--------------------------------------------------------------------------
+        */
         Schema::create('appointments', function (Blueprint $t) {
             $t->id();
-            $t->unsignedBigInteger('tenant_id')->index();
-            $t->unsignedBigInteger('lawyer_user_id')->nullable()->index();
-            $t->unsignedBigInteger('client_user_id')->nullable()->index();
-
+            $t->foreignId('tenant_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('lawyer_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $t->foreignId('client_user_id')->nullable()->constrained('users')->nullOnDelete();
             $t->dateTime('starts_at')->index();
             $t->dateTime('ends_at')->nullable();
-
             $t->string('room_name')->nullable();
             $t->enum('status', ['pending','booked','cancelled','finished'])->default('pending')->index();
             $t->integer('price_jpy')->default(0);
             $t->string('stripe_payment_intent_id')->nullable()->index();
-
-            // 予約フォームからの付加情報
             $t->string('client_name')->nullable();
             $t->string('client_email')->nullable();
             $t->string('client_phone')->nullable();
             $t->string('purpose_title')->nullable();
             $t->text('purpose_detail')->nullable();
             $t->string('visitor_id', 64)->nullable()->index();
-
             $t->timestamps();
         });
 
-        // 5) reservations（tenants/users を参照するのでその後）
+        Schema::create('timeslots', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('tenant_id')->constrained()->cascadeOnDelete();
+            $t->timestampTz('start_at');
+            $t->timestampTz('end_at')->nullable();
+            $t->enum('status', ['open','reserved'])->default('open');
+            $t->timestamps();
+            $t->unique(['tenant_id','start_at','end_at']);
+        });
+
         Schema::create('reservations', function (Blueprint $t) {
             $t->uuid('id')->primary();
-            $t->foreignId('tenant_id')->nullable()->constrained()->nullOnDelete();
+            $t->foreignId('tenant_id')->constrained()->cascadeOnDelete();
             $t->foreignId('customer_user_id')->nullable()->constrained('users')->nullOnDelete();
-
+            $t->string('customer_name')->nullable();
+            $t->string('email')->nullable();
             $t->timestamp('start_at')->nullable();
             $t->timestamp('end_at')->nullable();
-
-            $t->integer('amount')->default(0);
-            $t->string('stripe_payment_intent_id')->nullable();
-            $t->string('room_name')->index();
-
-            // MariaDB 10.3 厳格モード対策
-            $t->timestamp('scheduled_at')->useCurrent();
-
             $t->unsignedInteger('duration_min')->default(30);
             $t->integer('price_jpy')->default(0);
+            $t->integer('amount')->default(0);
+            $t->string('payment_status')->default('unpaid');
+            $t->string('stripe_payment_intent_id')->nullable()->index();
+            $t->string('room_name')->nullable()->index();
+            $t->string('meeting_url')->nullable();
+            $t->timestamp('scheduled_at')->useCurrent();
             $t->enum('status', ['pending','booked','paid','canceled'])->default('booked');
-
-            $t->string('host_code')->unique();
-            $t->string('guest_code')->unique();
-
+            $t->string('host_code')->nullable()->unique();
+            $t->string('guest_code')->nullable()->unique();
             $t->string('host_name')->nullable();
             $t->string('guest_name')->nullable();
             $t->string('guest_email')->nullable();
-
-            // 後続マイグレーションで要求されていた列（問い合わせ検索用）
             $t->string('requester_email')->nullable()->index();
             $t->string('requester_phone')->nullable()->index();
-
             $t->timestamps();
         });
 
-        // 6) payments（reservations を参照するので後）
         Schema::create('payments', function (Blueprint $t) {
             $t->id();
             $t->foreignUuid('reservation_id')->constrained('reservations')->cascadeOnDelete();
@@ -173,30 +239,25 @@ return new class extends Migration {
             $t->timestamps();
         });
 
-        // 7) timeslots（appointments を参照）
-        Schema::create('timeslots', function (Blueprint $t) {
+        Schema::create('inquiries', function (Blueprint $t) {
             $t->id();
-            $t->foreignId('tenant_id')->constrained()->cascadeOnDelete();
-            $t->timestampTz('start_at')->nullable();
-            $t->timestampTz('end_at')->nullable();
-            $t->enum('status', ['open','reserved'])->default('open');
-            $t->foreignId('appointment_id')->nullable()->constrained('appointments')->nullOnDelete();
-            $t->timestamps();
-            $t->unique(['tenant_id','start_at','end_at']);
-        });
-
-        // 8) wait_tickets（reservations を参照）※必ず reservations 後
-        Schema::create('wait_tickets', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->foreignUuid('reservation_id')->constrained('reservations')->cascadeOnDelete();
-            $t->text('token_jwt');
-            $t->string('otp_code', 10)->index();
-            $t->timestamp('otp_expires_at')->nullable();
-            $t->string('status')->default('waiting');
+            $t->string('site_slug')->nullable();
+            $t->string('name')->nullable();
+            $t->string('email');
+            $t->string('phone')->nullable();
+            $t->string('address')->nullable();
+            $t->string('topic')->nullable();
+            $t->text('message');
+            $t->dateTime('preferred_at')->nullable();
+            $t->string('status')->default('new');
             $t->timestamps();
         });
 
-        // 9) CMS（sites → pages → blocks → media）
+        /*
+        |--------------------------------------------------------------------------
+        | CMS
+        |--------------------------------------------------------------------------
+        */
         Schema::create('sites', function (Blueprint $t) {
             $t->id();
             $t->string('title');
@@ -204,6 +265,11 @@ return new class extends Migration {
             $t->json('meta')->nullable();
             $t->timestamps();
         });
+        Schema::table('sites', function (Blueprint $t) {
+            $t->foreignId('tenant_id')->nullable()->after('slug')
+                ->constrained('tenants')->nullOnDelete();
+        });
+
         Schema::create('pages', function (Blueprint $t) {
             $t->id();
             $t->foreignId('site_id')->constrained()->cascadeOnDelete();
@@ -233,44 +299,16 @@ return new class extends Migration {
             $t->integer('size')->nullable();
             $t->timestamps();
         });
-
-        // 10) personal_access_tokens（Sanctum互換）
-        Schema::create('personal_access_tokens', function (Blueprint $t) {
-            $t->id();
-            $t->morphs('tokenable');
-            $t->text('name');
-            $t->string('token', 64)->unique();
-            $t->text('abilities')->nullable();
-            $t->timestamp('last_used_at')->nullable();
-            $t->timestamp('expires_at')->nullable()->index();
-            $t->timestamps();
-        });
-
-        // 11) tenant_users（最後にユニーク制約）
-        Schema::create('tenant_users', function (Blueprint $t) {
-            $t->id();
-            $t->unsignedBigInteger('tenant_id')->index();
-            $t->unsignedBigInteger('user_id')->index();
-            $t->string('role', 20)->default('pro')->index(); // 'owner' | 'pro' | 'staff' | ...
-            $t->timestamps();
-            $t->unique(['tenant_id','user_id']);
-        });
-
-        // 12) 予約のユニーク（必要なら）
-        Schema::table('reservations', function (Blueprint $t) {
-            // 例: 弁護士×開始時刻の一意制約が必要なら列名に合わせて調整
-            // $t->unique(['lawyer_id','start_at'], 'reservations_lawyer_id_start_at_unique');
-        });
     }
 
     public function down(): void
     {
-        // FK 依存の逆順で Drop
         foreach ([
-                     'tenant_users','personal_access_tokens','media','blocks','pages','sites',
-                     'wait_tickets','timeslots','payments','reservations','appointments',
-                     'tenants','sessions','password_reset_tokens','users',
-                     'settings','failed_jobs','job_batches','jobs','cache_locks','cache',
+                     'media','blocks','pages','sites',
+                     'inquiries','payments','reservations','timeslots','appointments',
+                     'site_settings','subscriptions','plans','tenant_users','tenants',
+                     'personal_access_tokens','sessions','password_reset_tokens',
+                     'failed_jobs','job_batches','jobs','settings','users',
                  ] as $table) {
             Schema::dropIfExists($table);
         }
