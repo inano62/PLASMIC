@@ -1,5 +1,4 @@
 <?php
-// database/migrations/2025_01_01_000000_create_core_tables.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -51,6 +50,31 @@ return new class extends Migration
             $t->timestamp('failed_at')->useCurrent();
         });
 
+        Schema::create('settings', function (Blueprint $t) {
+            $t->string('key')->primary();
+            $t->text('value')->nullable();
+            $t->timestamps();
+        });
+
+        // 2) users（ここで role 等も最初から作る＆複合indexを一回で作成）
+        Schema::create('users', function (Blueprint $t) {
+            $t->id();
+            $t->string('name');
+            $t->string('email')->unique();
+            $t->timestamp('email_verified_at')->nullable();
+            $t->string('password');
+            // 追加分（後から ALTER しない）
+            $t->enum('role', ['admin','lawyer','client'])->default('client');
+            $t->string('phone')->nullable();
+            $t->string('account_type', 20)->default('client'); // 'client' | 'pro' | 'admin'
+            $t->string('stripe_customer_id')->nullable()->index();
+            $t->rememberToken();
+            $t->timestamps();
+
+            // 複合 index は “この1回だけ” で作る
+            $t->index(['email','role'], 'users_email_role_index');
+        });
+
         Schema::create('password_reset_tokens', function (Blueprint $t) {
             $t->string('email')->primary();
             $t->string('token');
@@ -75,32 +99,7 @@ return new class extends Migration
             $t->timestamps();
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 認証 / テナント
-        |--------------------------------------------------------------------------
-        */
-        Schema::create('users', function (Blueprint $t) {
-            $t->id();
-            $t->string('name');
-            $t->string('office_name')->nullable();
-            $t->string('stripe_default_pm')->nullable();
-            $t->string('stripe_customer_id')->nullable()->index();
-            $t->string('stripe_subscription_id')->nullable()->index();
-            $t->string('subscription_status')->nullable()->index();
-            $t->string('stripe_status')->nullable();
-            $t->string('email')->unique();
-            $t->timestamp('email_verified_at')->nullable();
-            $t->string('password');
-            $t->string('phone')->nullable();
-            $t->string('account_type', 20)->default('client');
-            $t->enum('role', ['admin','owner','staff','client'])->default('client')->index();
-            $t->rememberToken();
-            $t->boolean('entitled')->default(false);
-            $t->timestamps();
-            $t->index(['email','role'], 'users_email_role_idx');
-        });
-
+        // 3) tenants（users を参照するので users の後）
         Schema::create('tenants', function (Blueprint $t) {
             $t->id();
             $t->string('slug')->unique();

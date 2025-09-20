@@ -1,9 +1,8 @@
 <?php
 
-use App\Http\Controllers\{
-    PublicSiteApiController,
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\{PublicSiteApiController,
     PublicSiteController,
-    SettingsController,
     SiteBuilderController,
     PublishController,
     PublicController,
@@ -14,21 +13,13 @@ use App\Http\Controllers\{
     ReservationController,
     StripeController,
     ClientController,
-    TenantController,
-    MediaController,
-    PublicApiController,
-    BillingController
-};
+    MediaController};
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Auth,Route};
-use Stripe\StripeClient;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Firebase\JWT\JWT;   // ← 追加
 use Firebase\JWT\Key;
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
-
 
 Route::get('/ping', fn() => ['ok'=>true, 'time'=>now()->toIso8601String()]);
 Route::get('/settings', [PublicApiController::class, 'settings']);
@@ -63,87 +54,16 @@ Route::prefix('public')->group(function () {
         ]);
     });
 });
-Route::get('/public/tenants/list', [TenantController::class, 'index']);
-Route::post('/stripe/webhook', [BillingController::class, 'webhook']); // 署名検証あり
-Route::get('/billing/session/{sid}', [BillingController::class, 'session']);
 
-Route::post('/signup-and-checkout', function (Request $r) {
-    $v = $r->validate([
-        'name'     => ['required','string','max:255'],
-        'email'    => ['required','email','max:255'],
-        'password' => ['required','string','min:8'],
-    ]);
 
-    // 既存→パス一致確認 / 新規作成
-    $user = User::where('email', $v['email'])->first();
-    if ($user) {
-        if (! Hash::check($v['password'], $user->password)) {
-            return response()->json(['message' => 'このメールは登録済みです。パスワードが違います。'], 422);
-        }
-    } else {
-        $user = User::create([
-            'name'     => $v['name'],
-            'email'    => $v['email'],
-            'password' => Hash::make($v['password']),
-        ]);
-    }
-
-    $secret  = config('services.stripe.secret');               // ← config/services.php 経由
-    $priceId = env('STRIPE_PRICE_ID');                         // ← .env の price_***
-    if (! $secret || ! $priceId) {
-        return response()->json(['message' => 'Stripe設定が未完了（SECRETまたはPRICE）'], 500);
-    }
-    $u = auth()->user();
-    $stripe = new \Stripe\StripeClient(config('services.stripe.secret'));
-
-    // Customer を用意
-    if (! $user->stripe_customer_id) {
-        $cust = $stripe->customers->create([
-            'email' => $user->email,
-            'name'  => $user->name,
-        ]);
-        $user->stripe_customer_id = $cust->id;
-        $user->save();
-    }
-
-    $front = rtrim(env('APP_FRONTEND_URL', 'http://localhost:5176'), '/');
-
-    // Hosted Checkout セッション作成（サブスク）
-    $session = $stripe->checkout->sessions->create([
-        'mode'       => 'subscription',
-        'customer'   => $user->stripe_customer_id,
-        'line_items' => [[
-            'price'    => $priceId,      // ← 絶対に price_ で始まるID
-            'quantity' => 1,
-        ]],
-        'success_url' => $front.'/billing/success?session_id={CHECKOUT_SESSION_ID}',
-        'cancel_url'  => $front.'/billing/cancel',
-        'allow_promotion_codes' => true,
-        'client_reference_id'   => (string)$user->id,
-        'metadata'              => ['user_id' => (string)$user->id],
-    ]);
-
-    return response()->json(['url' => $session->url]);
-});
-Route::middleware('auth:sanctum')->post('/billing/portal', function () {
-    $stripe = new \Stripe\StripeClient(env('STRIPE_SECRET'));
-    $url = $stripe->billingPortal->sessions->create([
-        'customer'   => auth()->user()->stripe_customer_id,
-        'return_url' => env('APP_URL').'/admin/account',
-    ])->url;
-    return ['url' => $url];
-});
 // ───── テナント配下（ID/slug どちらでもOKにしているならルートモデルに合わせて） ─────
 Route::prefix('tenants/{tenant}')->group(function () {
     Route::get('/availability',       [TimeslotController::class, 'listOpenForTenant']);
     Route::get('/my/appointments',    [AppointmentController::class, 'myForTenant']); // or myByVisitor
-    Route::any('/appointments',      [AppointmentController::class, 'storeForTenant']);
+    Route::post('/appointments',      [AppointmentController::class, 'storeForTenant']);
 });
-Route::middleware('auth:sanctum')->post('/billing/checkout', [BillingController::class, 'checkout'])->name('billing.checkout');
-Route::middleware('auth:sanctum')->get('/billing/thanks',    [BillingController::class, 'thanks'])->name('billing.thanks');
 // ───── Builder 管理API（Sanctum） ─────
 Route::prefix('admin')->group(function () {
-
     Route::get   ('/sites/{id}',            [SiteBuilderController::class,'show']);
     Route::put   ('/sites/{id}',            [SiteBuilderController::class,'update']);
     Route::post  ('/sites/{id}/pages',      [SiteBuilderController::class,'addPage']);

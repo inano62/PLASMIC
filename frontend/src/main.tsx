@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider, Navigate, Outlet } from "react-rou
 
 import { setToken } from "@/lib/api";
 import { ADMIN_TOKEN_KEY } from "./lib/auth";
+
 const token = import.meta.env.VITE_API_TOKEN ?? null;
 setToken(token || null);
 if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
@@ -47,7 +48,6 @@ function RequireAdmin() {
 }
 
 const router = createBrowserRouter([
-
     // ✅ ここを“1個上”に出す（SiteLayoutの外側）
     { path: "/s/:slug/*", element: <PublicSite /> },
     // 先生サイト配下の予約にしたいならこれも直下で OK
