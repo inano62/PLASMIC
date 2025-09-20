@@ -1,6 +1,6 @@
 // src/pages/admin/Signup.tsx
 import { useState } from "react";
-import api, { postWeb } from "@/lib/api";
+import api, { postWeb } from "../../lib/api";
 
 export default function Signup() {
     const [name, setName]       = useState("");
@@ -27,8 +27,9 @@ export default function Signup() {
             // 3) Stripe Checkout開始（APIルート）
             const { url } = await api.checkout({ price_id: "price_xxx" });
             window.location.href = url; // Stripeのホスト決済ページへ
-        } catch (e: any) {
-            setErr(e?.data?.message || e?.message || "失敗しました");
+        } catch (e: unknown) {
+            const err = e as { data?: { message?: string }; message?: string };
+            setErr(err.data?.message || err.message || "失敗しました");
         } finally {
             setLoading(false);
         }

@@ -28,7 +28,7 @@ export function Features(features:FeatureCard[]){
                     <Link to="/">ホーム</Link>
                     <Link to=":tenant/reserve">予約</Link>
                     <Link to="s/:slug">TenantHome</Link>
-                    <Link to="Offices">Offices</Link>
+                    <Link to="/offices">Offices</Link>
                     <Link to="/admin" className="px-3 py-1 rounded bg-primary text-primary-foreground">管理</Link>
                 </nav>
             </header>

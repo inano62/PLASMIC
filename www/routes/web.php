@@ -2,14 +2,30 @@
 
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\SiteController;
-//use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PublicSiteController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
-use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Stripe\StripeClient;
+use App\Http\Middleware\VerifyCsrfToken;
+use App\Models\User;
+use Laravel\Sanctum\Http\Controllers\CsrfCookieController;
 require __DIR__ . '/auth.php';
+Route::get('/sanctum/csrf-cookie', [CsrfCookieController::class, 'show'])
+    ->middleware('web');
+Route::post('/login', function (Request $r) {
+    $cred = $r->validate([
+        'email'    => 'required|email',
+        'password' => 'required',
+    ]);
+
+    if (!Auth::attempt($cred)) {
+        return response()->json(['message' => 'メールまたはパスワードが違います'], 422);
+    }
+
+    $r->session()->regenerate(); // セッション固定攻撃対策
+    return response()->json(['ok'=>true, 'user'=>$r->user()]);
+});
 Route::post('/signup-and-checkout', function (Request $r) {
     $v = $r->validate([
         'name'     => ['required','string','max:255'],
@@ -50,6 +66,13 @@ Route::post('/signup-and-checkout', function (Request $r) {
 
     return response()->json(['url'=>$session->url]);
 });
+Route::get('/api/user', function (Request $r) {
+    if (! $r->user()) {
+        return response()->json(['message'=>'Unauthenticated'], 401);
+    }
+    return $r->user();
+});
+
 // web.php
 Route::get('/{path}', function () {
     return response()->file(public_path('dist/index.html'));
@@ -73,34 +96,31 @@ Route::post('/register', function (Request $r) {
         'email'=> $v['email'],
         'password' => Hash::make($v['password']),
     ]);
-    Auth::login($user, true);
+    Auth::login($user, true); // ログイン状態にする
     $r->session()->regenerate();
-    return response()->json(['ok'=>true], 201);
-});
-// 2) ログイン
-Route::post('/login', function (Request $r) {
-    $cred = $r->validate([
-        'email'    => ['required','email'],
-        'password' => ['required','string'],
-    ]);
-    if (! Auth::attempt($cred, true)) {
-        return response()->json(['message' => 'Invalid credentials'], 422);
-    }
-    $r->session()->regenerate();
-    return response()->json(['ok'=>true]);
-});
-Route::get('/thanks', [BillingController::class, 'thanks'])->name('billing.thanks');
 
+    return response()->json(['ok'=>true, 'user'=>$user], 201);
+});
 
-// 3) ログアウト
+//Route::post('/login', function (Illuminate\Http\Request $r) {
+//    logger()->info('LOGIN_PAYLOAD', $r->only('email','password')); // 一時ログ
+//    $cred = $r->validate([
+//        'email'    => 'required|email',
+//        'password' => 'required',
+//    ]);
+//    if (!\Illuminate\Support\Facades\Auth::attempt($cred)) {
+//        return response()->json(['message' => 'Invalid credentials'], 422);
+//    }
+//    $r->session()->regenerate();
+//    return response()->noContent();
+//});
 Route::post('/logout', function (Request $r) {
-    Auth::logout();
+    Auth::guard('web')->logout();
     $r->session()->invalidate();
     $r->session()->regenerateToken();
-    return response()->json(['ok'=>true]);
+    return response()->noContent();
 });
+Route::get('/thanks', [BillingController::class, 'thanks'])->name('billing.thanks');
 // デバッグ
 Route::get('/me', fn(Request $r) => response()->json($r->user()));
-// サイト情報JSON
-Route::get('/api/public/sites/{slug}', [PublicSiteController::class, 'site']);
-Route::get('/api/public/sites/{slug}/page', [PublicSiteController::class, 'page']);
+

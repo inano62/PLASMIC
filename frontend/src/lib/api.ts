@@ -1,141 +1,105 @@
-// src/lib/api.ts
-let TOKEN: string | null = null;
-
-/** ===== Base URL（相対で使う） ======================================= */
-const RAW_BASE = (import.meta.env.VITE_API_BASE ?? "/api").trim();
-export const API_BASE = RAW_BASE.replace(/\/$/, "");            // -> "/api"
-export const API_ROOT = "";                                     // 絶対URLは使わない（Vite proxy 前提）
-
-export function setToken(token: string | null) { TOKEN = token; }
-
-function buildUrl(path: string) {
-    const p = path.startsWith("/") ? path.slice(1) : path;
-    return `${API_BASE}/${p}`; // -> "/api/xxx"
-}
+// src/lib/api.ts ーー 決定版（一本化）ーー
+export type ApiPath = `/api/${string}`; // /api/* 専用
+export type WebPath = `/${string}`;     // /login, /register など（/api/は禁止）
 
 const COMMON: RequestInit = { credentials: "include" };
 
-/** ===== CSRF ======================================================== */
+let TOKEN: string | null = null;
+export function setToken(t: string | null) {
+    TOKEN = t;
+}
 async function ensureCsrf() {
-    // 相対パスで取得（Vite proxy が :8000 に中継する）
-    await fetch(`/sanctum/csrf-cookie`, { credentials: "include" });
+    // Sanctum: これが 204 になれば以後 Cookie 認証OK
+    await fetch("/sanctum/csrf-cookie", COMMON);
 }
 
-function xsrfFromCookie() {
-    const m = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
-    return m ? decodeURIComponent(m[1]) : "";
+async function jsonOrText(res: Response) {
+    const ct = res.headers.get("content-type") || "";
+    return ct.includes("application/json") ? res.json() : res.text();
 }
 
-/** ===== ユーティリティ: JSON POST（相対パスのみ） ================== */
-/** web直用（/register, /login など）。必ず相対パス `/xxx` を渡す */
-async function postJsonRelative<T>(path: string, body: any): Promise<T> {
+function boom(status: number, data: unknown): never {
+    const message =
+        typeof data === "string" ? data :
+            (data && typeof data === "object" && "message" in data ? (data as any).message : "Request failed");
+    const err = new Error(String(message)) as Error & { status: number; data?: unknown };
+    err.status = status; err.data = data;
+    throw err;
+}
+
+/** ================= Web ルート（/login, /register など） ================= */
+export async function postWeb<T = unknown>(path: WebPath, body?: unknown): Promise<T> {
+    if (path.startsWith("/api/")) throw new Error("postWeb に /api/* を渡さないでください");
     await ensureCsrf();
-
-    const headers: Record<string, string> = {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-    };
-
-    const xsrf = xsrfFromCookie();
-    if (xsrf) headers["X-XSRF-TOKEN"] = xsrf;
-
-    const url = path.startsWith("/") ? path : `/${path}`;
-
-    const res = await fetch(url, {
+    const res = await fetch(path, {
         ...COMMON,
         method: "POST",
-        headers,
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
         body: JSON.stringify(body ?? {}),
     });
-
-    const ct = res.headers.get("content-type") || "";
-    const data = ct.includes("application/json")
-        ? await res.json().catch(() => null)
-        : await res.text().catch(() => null);
-
-    if (!res.ok) {
-        const err: any = new Error(typeof data === "string" ? data : data?.message || res.statusText);
-        err.status = res.status;
-        err.data = data;
-        throw err;
-    }
+    if (res.status === 204 || res.status === 205) return undefined as T;
+    const data = await jsonOrText(res);
+    if (!res.ok) boom(res.status, data);
     return data as T;
 }
 
-/** ===== /api 配下（Sanctum 保護の JSON API） ======================= */
-async function request<T>(path: string, init: RequestInit = {}) {
-    const method = (init.method ?? "GET").toUpperCase();
-
-    // 初回以降でも安全（Cookieが無ければ付与されるだけ）
-    await ensureCsrf();
-
-    const headers: Record<string, string> = {
-        Accept: "application/json",
-        ...(init.headers as Record<string, string> | undefined),
-    };
-
-    const isForm = init.body instanceof FormData;
-    if (!isForm && init.body !== undefined) {
-        headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
-    }
-
-    if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
-
-    // XSRF ヘッダは付けられる時だけ付与（GET/HEAD以外）
-    const xsrf = xsrfFromCookie();
-    if (xsrf && method !== "GET" && method !== "HEAD") {
-        headers["X-XSRF-TOKEN"] = xsrf;
-    }
-
-    const res = await fetch(buildUrl(path), { ...COMMON, ...init, headers });
-    const ct = res.headers.get("content-type") || "";
-    const data = ct.includes("application/json")
-        ? await res.json().catch(() => null)
-        : await res.text().catch(() => null);
-
-    if (!res.ok) {
-        const msg = typeof data === "string" ? data : data?.message || res.statusText;
-        const err: any = new Error(msg);
-        err.status = res.status;
-        err.data = data;
-        throw err;
-    }
-    return data as T;
-}
-
-/** ===== 公開 API ==================================================== */
+/** ================= API ルート（/api/*） ================= */
 export const api = {
-    base: API_BASE,
-    root: API_ROOT,
-    setToken,
-
-    // 汎用 /api JSON
-    get<T = any>(p: string)  { return request<T>(p, { method: "GET" }); },
-    post<T = any>(p: string, body?: any) {
-        const isForm = body instanceof FormData;
-        return request<T>(p, { method: "POST", body: isForm ? body : JSON.stringify(body ?? {}) });
+    async get<T = unknown>(path: ApiPath): Promise<T> {
+        const res = await fetch(path, {
+            credentials: "include",
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+                ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
+            },
+        });
+        const data = await jsonOrText(res);
+        if (!res.ok) boom(res.status, data);
+        return data as T;
     },
-    put<T = any>(p: string, body?: any) {
+
+    async post<T = unknown>(path: ApiPath, body?: unknown): Promise<T> {
+        if (!path.startsWith("/api/")) throw new Error("api.post は /api/* のみ");
+        await ensureCsrf();
         const isForm = body instanceof FormData;
-        return request<T>(p, { method: "PUT", body: isForm ? body : JSON.stringify(body ?? {}) });
+        const headers: Record<string, string> = {
+            Accept: "application/json",
+            ...(isForm ? {} : { "Content-Type": "application/json" }),
+            ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
+        };
+        const res = await fetch(path, {
+            credentials: "include",
+            method: "POST",
+            headers,
+            body: isForm ? (body as FormData) : JSON.stringify(body ?? {}),
+        });
+        const data = await jsonOrText(res);
+        if (!res.ok) boom(res.status, data);
+        return data as T;
     },
-    patch<T = any>(p: string, body?: any) {
-        const isForm = body instanceof FormData;
-        return request<T>(p, { method: "PATCH", body: isForm ? body : JSON.stringify(body ?? {}) });
+
+    // ---- よく使うアプリ固有のヘルパ ----
+    checkout(payload: { price_id?: string }) {
+        return api.post<{ url: string }>("/api/billing/checkout", payload);
     },
-    del<T = any>(p: string)   { return request<T>(p, { method: "DELETE" }); },
-
-    // 認証（web直）
-    async register(payload: any) { return postJsonRelative("/register", payload); },
-    async login(payload: any)    { return postJsonRelative("/login", payload); },
-    async logout()               { return postJsonRelative("/logout", {}); },
-
-    // Billing（/api 側）
-    async checkout(payload: { price_id?: string }) { return api.post<{ url: string }>("/billing/checkout", payload); },
-    async thanks()               { return api.get("/billing/thanks"); },
-
-    // 認証済みユーザー情報
-    async me<T = any>()          { return api.get<T>("/user"); },
+    me<T = { id:number; name:string; email:string }>() {
+        return api.get<T>("/api/user");
+    },
 };
 
 export default api;
+
+/** ================= 追加の便利関数（任意） ================= */
+// ログイン・登録を web ルートで一括提供しておくと楽
+export const auth = {
+    login(email: string, password: string) {
+        return postWeb<void>("/login", { email, password });
+    },
+    register(payload: { name: string; email: string; password: string; password_confirmation: string }) {
+        return postWeb<void>("/register", payload);
+    },
+    logout() {
+        return postWeb<void>("/logout", {});
+    },
+};

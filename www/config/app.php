@@ -25,12 +25,12 @@ return [
         ...array_filter(explode(',', (string) env('APP_PREVIOUS_KEYS', ''))),
     ],
 
-    // 🔽 ここが今回の本丸。一次元の“文字列”配列にすること！
     'providers' => ServiceProvider::defaultProviders()->merge([
         App\Providers\AppServiceProvider::class,
         App\Providers\AuthServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
-        // 追加分はここに 1 行ずつ。[] で包まない！
+        Laravel\Tinker\TinkerServiceProvider::class,
+        Laravel\Sanctum\SanctumServiceProvider::class,
     ])->toArray(),
 ];

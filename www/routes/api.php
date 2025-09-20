@@ -1,40 +1,92 @@
 <?php
-
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\{BillingController,
+use App\Http\Controllers\{
+    BillingController,
     PublicApiController,
     PublicSiteApiController,
     PublicSiteController,
     SettingsController,
     SiteBuilderController,
-    PublishController,
     PublicController,
     TimeslotController,
     AppointmentController,
-    TokenController,
     ReservationController,
     StripeController,
     ClientController,
-    MediaController};
+    MediaController
+};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Firebase\JWT\JWT;   // ← 追加
 use Firebase\JWT\Key;
+use App\Models\User;
+use Laravel\Sanctum\PersonalAccessToken;
 
+Route::get('/__dbcheck', function () {
+    try {
+        $path = config('database.connections.sqlite.database');
+
+        return response()->json([
+            'driver'       => config('database.default'),
+            'sqlite_path'  => $path,
+            'realpath'     => $path ? (file_exists($path) ? realpath($path) : null) : null,
+            'exists'       => $path ? file_exists($path) : null,
+            'users_count'  => DB::table('users')->count(),   // ここで DB が死んでたら catch に飛ぶ
+            'admin'        => DB::table('users')->where('email','admin@example.com')->first(),
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'class' => get_class($e),
+            'code'  => $e->getCode(),
+        ], 500);
+    }
+});
+Route::post('/auth/token', function (Request $r) {
+    $cred = $r->validate([
+        'email' => 'required|email',
+        'password' => 'required',
+    ]);
+    $user = User::where('email', $cred['email'])->first();
+    if (! $user || ! Hash::check($cred['password'], $user->password)) {
+        return response()->json(['message' => 'Invalid credentials'], 401);
+    }
+    $token = $user->createToken('admin')->plainTextToken; // ← Sanctum PAT
+    return response()->json([
+        'token' => $token,
+        'user'  => $user->only('id','name','email'),
+    ]);
+});
+Route::get('/whoami', function (Request $r) {
+    // 1) 通常の guard（セッションなど）で取得
+    $user = $r->user();
+
+    // 2) 取れない時は Bearer トークンを手動解決（Sanctum）
+    if (!$user && $token = $r->bearerToken()) {
+        $pat = PersonalAccessToken::findToken($token);
+        if ($pat) $user = $pat->tokenable; // ← User モデル
+    }
+
+    return response()->json([
+        'user' => $user?->only('id','name','email'),
+    ])->header('Cache-Control', 'no-store'); // ブラウザキャッシュ防止
+});
 Route::get('/ping', fn() => ['ok'=>true, 'time'=>now()->toIso8601String()]);
-Route::get('/settings', [PublicApiController::class, 'settings']);
+
 Route::get('/billing/session/{sid}', [BillingController::class, 'session']);
 Route::post('/stripe/webhook', [BillingController::class, 'webhook']);
 // ───── 公開サイト用 JSON ─────
 Route::prefix('public')->group(function () {
-    Route::get('/sites/{slug}',       [PublicSiteApiController::class, 'site']);
+    Route::get('/settings', [PublicApiController::class, 'settings']);
+    Route::get('/tenants/list', [PublicSiteApiController::class, 'tenantsList']);
     Route::get('/sites/{slug}/page',  [PublicSiteApiController::class, 'page']);
+    Route::get('/sites/{slug}',       [PublicSiteApiController::class, 'site']);
     Route::get('/tenants',            [PublicController::class, 'tenants']);
     Route::get('/tenants/resolve',    [PublicController::class, 'resolve']);
     Route::get('/tenants/{tenant}/pros',  [PublicController::class, 'pros']);
-    Route::get('/sites/by-slug/{slug}', [PublicSiteController::class, 'showBySlug']);
     Route::get('/tenants/{tenant}/slots', [AppointmentController::class,'publicSlots']);
     Route::get('/tenants/{tenant}/upcoming', [AppointmentController::class,'upcomingForTenant']);
     Route::get('/tenants/resolve', function (Request $r) {
@@ -88,7 +140,9 @@ Route::prefix('admin')->group(function () {
         return ['url' => Storage::url($path)];
     })->middleware('auth');
 });
-
+//Route::middleware('auth:sanctum')->get('/user', function (Request $r) {
+//    return $r->user();
+//});
 Route::post('/media', [MediaController::class,'upload']);
 Route::get('/media/{id}', [MediaController::class, 'show']);
 
@@ -98,9 +152,6 @@ Route::prefix('appointments')->group(function () {
     Route::get('{id}',   [AppointmentController::class, 'show'])
         ->whereNumber('id'); // ← これ大事
 });
-Route::middleware('auth:sanctum')->get('/whoami', fn() =>
-response()->json(['user' => auth()->user()?->only('id','name','email')])
-);
 Route::get('/billing/session/{sid}', [BillingController::class, 'session']);
 Route::middleware('auth:sanctum')->post('/billing/checkout', [BillingController::class, 'checkout']);
 Route::middleware('auth:sanctum')->post('/billing/portal', function () {
@@ -124,14 +175,29 @@ Route::get('/inquiries', [PublicSiteController::class, 'index']);          // �
 Route::get('/inquiries/{id}', [PublicSiteController::class, 'show']);      // 詳細
 Route::patch('/inquiries/{id}', [PublicSiteController::class, 'update']);
 Route::get('/settings', [SettingsController::class, 'show']);
+
 Route::post('/auth/token', function (Request $r) {
-    $cred = $r->validate(['email'=>'required|email','password'=>'required']);
-    if (!Auth::attempt($cred)) {
-        return response()->json(['message'=>'Invalid credentials'], 401);
+    $cred = $r->validate([
+        'email'    => 'required|email',
+        'password' => 'required',
+    ]);
+
+    $user = User::where('email', $cred['email'])->first();
+
+    if (!$user || !Hash::check($cred['password'], $user->password)) {
+        return response()->json(['message' => 'Invalid credentials'], 401);
     }
-    $user = $r->user();
+
     $token = $user->createToken('admin')->plainTextToken;
-    return response()->json(['token'=>$token, 'user'=>['id'=>$user->id,'name'=>$user->name]]);
+
+    return response()->json([
+        'token' => $token,
+        'user'  => [
+            'id'    => $user->id,
+            'name'  => $user->name,
+            'email' => $user->email,
+        ],
+    ]);
 });
 Route::post('/signup-and-checkout', [StripeController::class, 'signupAndCheckout']);
 Route::match(['GET','POST'], '/video/token', function (Request $r) {

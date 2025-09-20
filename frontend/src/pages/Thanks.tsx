@@ -1,6 +1,6 @@
 // Thanks.tsx（例）
 import { useEffect } from "react";
-import API from "@/lib/api";
+import API from "../../src/lib/api";
 import { useNavigate } from "react-router-dom";
 
 export default function Thanks() {

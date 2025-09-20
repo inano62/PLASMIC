@@ -13,7 +13,7 @@ return [
     'allowed_origins' => ['http://localhost:5176'],
 
     // ここは空配列に！(いま書いてある正規表現は消す)
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => ['*'],
 
     'exposed_headers' => [],
     'max_age' => 0,
