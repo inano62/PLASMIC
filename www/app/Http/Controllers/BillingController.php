@@ -63,6 +63,8 @@ class BillingController extends Controller
             'success_url' => env('APP_FRONTEND_URL').'/billing/success?session_id={CHECKOUT_SESSION_ID}',
             'cancel_url'  => env('APP_FRONTEND_URL').'/billing/cancel',
             'allow_promotion_codes' => true,
+            'client_reference_id' => (string)$user->id,             // ← 追加
+            'metadata' => ['user_id' => (string)$user->id],         // ← 追加
         ]);
 
         return response()->json(['url' => $session->url]);
@@ -141,17 +143,17 @@ class BillingController extends Controller
                 $user = User::where('stripe_subscription_id', $sub->id)->first()
                     ?: User::where('stripe_customer_id', $sub->customer)->first();
 
-//                if ($user) {
+                if ($user) {
                     $user->stripe_subscription_id = $sub->id;
                     $user->subscription_status    = $status;
                     $user->stripe_status          = $status;
                     $user->save();
-//                } else {
-//                    \Log::warning('no user for subscription event', [
-//                        'sub' => $sub->id, 'customer' => $sub->customer
-//                    ]);
-//                }
-//                break;
+                } else {
+                    \Log::warning('no user for subscription event', [
+                        'sub' => $sub->id, 'customer' => $sub->customer
+                    ]);
+                }
+                break;
             }
         }
 

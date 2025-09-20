@@ -1,14 +1,16 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\{PublicSiteApiController,
+use App\Http\Controllers\{BillingController,
+    PublicApiController,
+    PublicSiteApiController,
     PublicSiteController,
+    SettingsController,
     SiteBuilderController,
     PublishController,
     PublicController,
     TimeslotController,
     AppointmentController,
-    StripeWebhookController,
     TokenController,
     ReservationController,
     StripeController,
@@ -23,6 +25,8 @@ use Firebase\JWT\Key;
 
 Route::get('/ping', fn() => ['ok'=>true, 'time'=>now()->toIso8601String()]);
 Route::get('/settings', [PublicApiController::class, 'settings']);
+Route::get('/billing/session/{sid}', [BillingController::class, 'session']);
+Route::post('/stripe/webhook', [BillingController::class, 'webhook']);
 // ───── 公開サイト用 JSON ─────
 Route::prefix('public')->group(function () {
     Route::get('/sites/{slug}',       [PublicSiteApiController::class, 'site']);
@@ -33,7 +37,6 @@ Route::prefix('public')->group(function () {
     Route::get('/sites/by-slug/{slug}', [PublicSiteController::class, 'showBySlug']);
     Route::get('/tenants/{tenant}/slots', [AppointmentController::class,'publicSlots']);
     Route::get('/tenants/{tenant}/upcoming', [AppointmentController::class,'upcomingForTenant']);
-
     Route::get('/tenants/resolve', function (Request $r) {
         $key  = $r->query('key');
         $slug = $r->query('slug');
@@ -98,11 +101,20 @@ Route::prefix('appointments')->group(function () {
 Route::middleware('auth:sanctum')->get('/whoami', fn() =>
 response()->json(['user' => auth()->user()?->only('id','name','email')])
 );
+Route::get('/billing/session/{sid}', [BillingController::class, 'session']);
+Route::middleware('auth:sanctum')->post('/billing/checkout', [BillingController::class, 'checkout']);
+Route::middleware('auth:sanctum')->post('/billing/portal', function () {
+    $stripe = new \Stripe\StripeClient(config('services.stripe.secret') ?? env('STRIPE_SECRET'));
+    $url = $stripe->billingPortal->sessions->create([
+        'customer'   => auth()->user()->stripe_customer_id,
+        'return_url' => env('APP_URL').'/admin/account',
+    ])->url;
+    return ['url' => $url];
+});
 // ───── 面談/決済/etc ─────
 Route::post('/clients/upsert',        [ClientController::class,     'upsert'])->name('clients.upsert');
 Route::post('/reservations',          [ReservationController::class,'create']);
 Route::post('/pay/checkout/{id}',     [StripeController::class,     'createCheckout']);
-//Route::post('/stripe/webhook',        [StripeWebhookController::class,'handle']); // ← 1本に統一
 Route::post('/appointments',          [AppointmentController::class,'store']);
 Route::get ('/appointments/{id}',     [AppointmentController::class,'show']);
 Route::post('/appointments/{id}/ticket',[AppointmentController::class,'issueTicket']);
@@ -121,6 +133,7 @@ Route::post('/auth/token', function (Request $r) {
     $token = $user->createToken('admin')->plainTextToken;
     return response()->json(['token'=>$token, 'user'=>['id'=>$user->id,'name'=>$user->name]]);
 });
+Route::post('/signup-and-checkout', [StripeController::class, 'signupAndCheckout']);
 Route::match(['GET','POST'], '/video/token', function (Request $r) {
     $room   = $r->input('room') ?: $r->query('room');
     $ticket = $r->input('ticket') ?: $r->query('ticket');

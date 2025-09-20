@@ -11,6 +11,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Stripe\StripeClient;
+use App\Models\Tenant;
+use Stripe\Stripe;
+use Stripe\Checkout\Session as Checkout;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */

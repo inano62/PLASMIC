@@ -10,7 +10,7 @@ return new class extends Migration
     {
         /*
         |--------------------------------------------------------------------------
-        | 基本ユーティリティ（queue / tokens / settings）
+        | 基本ユーティリティ（settings / cache / queue）
         |--------------------------------------------------------------------------
         */
         Schema::create('settings', function (Blueprint $t) {
@@ -19,6 +19,19 @@ return new class extends Migration
             $t->timestamps();
         });
 
+        // Laravel cache:table 相当
+        Schema::create('cache', function (Blueprint $t) {
+            $t->string('key')->primary();
+            $t->mediumText('value');
+            $t->integer('expiration');
+        });
+        Schema::create('cache_locks', function (Blueprint $t) {
+            $t->string('key')->primary();
+            $t->string('owner');
+            $t->integer('expiration');
+        });
+
+        // queue テーブル
         Schema::create('jobs', function (Blueprint $t) {
             $t->bigIncrements('id');
             $t->string('queue')->index();
@@ -28,6 +41,7 @@ return new class extends Migration
             $t->unsignedInteger('available_at');
             $t->unsignedInteger('created_at');
         });
+
         Schema::create('job_batches', function (Blueprint $t) {
             $t->string('id')->primary();
             $t->string('name');
@@ -40,6 +54,7 @@ return new class extends Migration
             $t->integer('created_at');
             $t->integer('finished_at')->nullable();
         });
+
         Schema::create('failed_jobs', function (Blueprint $t) {
             $t->id();
             $t->string('uuid')->unique();
@@ -50,28 +65,27 @@ return new class extends Migration
             $t->timestamp('failed_at')->useCurrent();
         });
 
-        Schema::create('settings', function (Blueprint $t) {
-            $t->string('key')->primary();
-            $t->text('value')->nullable();
-            $t->timestamps();
-        });
-
-        // 2) users（ここで role 等も最初から作る＆複合indexを一回で作成）
+        /*
+        |--------------------------------------------------------------------------
+        | users / 認証系
+        |--------------------------------------------------------------------------
+        */
         Schema::create('users', function (Blueprint $t) {
             $t->id();
             $t->string('name');
             $t->string('email')->unique();
             $t->timestamp('email_verified_at')->nullable();
             $t->string('password');
-            // 追加分（後から ALTER しない）
-            $t->enum('role', ['admin','lawyer','client'])->default('client');
+            $t->enum('role', ['admin','owner','lawyer','client'])->default('client');
             $t->string('phone')->nullable();
-            $t->string('account_type', 20)->default('client'); // 'client' | 'pro' | 'admin'
+            $t->string('account_type', 20)->default('client'); // client | pro | admin
             $t->string('stripe_customer_id')->nullable()->index();
+            $t->string('subscription_status')->nullable()->index();
+            $t->string('stripe_subscription_id')->nullable()->index();
+            $t->string('stripe_default_pm')->nullable();
+            $t->string('stripe_status')->nullable()->index();
             $t->rememberToken();
             $t->timestamps();
-
-            // 複合 index は “この1回だけ” で作る
             $t->index(['email','role'], 'users_email_role_index');
         });
 
@@ -80,6 +94,7 @@ return new class extends Migration
             $t->string('token');
             $t->timestamp('created_at')->nullable();
         });
+
         Schema::create('sessions', function (Blueprint $t) {
             $t->string('id')->primary();
             $t->foreignId('user_id')->nullable()->index();
@@ -88,6 +103,7 @@ return new class extends Migration
             $t->longText('payload');
             $t->integer('last_activity')->index();
         });
+
         Schema::create('personal_access_tokens', function (Blueprint $t) {
             $t->id();
             $t->morphs('tokenable');
@@ -99,7 +115,11 @@ return new class extends Migration
             $t->timestamps();
         });
 
-        // 3) tenants（users を参照するので users の後）
+        /*
+        |--------------------------------------------------------------------------
+        | tenants 関連
+        |--------------------------------------------------------------------------
+        */
         Schema::create('tenants', function (Blueprint $t) {
             $t->id();
             $t->string('slug')->unique();
@@ -261,12 +281,9 @@ return new class extends Migration
             $t->id();
             $t->string('title');
             $t->string('slug')->unique();
+            $t->foreignId('tenant_id')->nullable()->constrained('tenants')->nullOnDelete();
             $t->json('meta')->nullable();
             $t->timestamps();
-        });
-        Schema::table('sites', function (Blueprint $t) {
-            $t->foreignId('tenant_id')->nullable()->after('slug')
-                ->constrained('tenants')->nullOnDelete();
         });
 
         Schema::create('pages', function (Blueprint $t) {
@@ -281,6 +298,7 @@ return new class extends Migration
             $t->timestamps();
             $t->unique(['site_id','path']);
         });
+
         Schema::create('blocks', function (Blueprint $t) {
             $t->id();
             $t->foreignId('page_id')->constrained()->cascadeOnDelete();
@@ -289,6 +307,7 @@ return new class extends Migration
             $t->unsignedInteger('sort')->default(1);
             $t->timestamps();
         });
+
         Schema::create('media', function (Blueprint $t) {
             $t->id();
             $t->string('disk')->default('public');
@@ -302,14 +321,35 @@ return new class extends Migration
 
     public function down(): void
     {
-        foreach ([
-                     'media','blocks','pages','sites',
-                     'inquiries','payments','reservations','timeslots','appointments',
-                     'site_settings','subscriptions','plans','tenant_users','tenants',
-                     'personal_access_tokens','sessions','password_reset_tokens',
-                     'failed_jobs','job_batches','jobs','settings','users',
-                 ] as $table) {
-            Schema::dropIfExists($table);
-        }
+        // 依存の深い順に drop
+        Schema::dropIfExists('blocks');
+        Schema::dropIfExists('pages');
+        Schema::dropIfExists('sites');
+        Schema::dropIfExists('media');
+
+        Schema::dropIfExists('inquiries');
+        Schema::dropIfExists('payments');
+        Schema::dropIfExists('reservations');
+        Schema::dropIfExists('timeslots');
+        Schema::dropIfExists('appointments');
+
+        Schema::dropIfExists('site_settings');
+        Schema::dropIfExists('subscriptions');
+        Schema::dropIfExists('plans');
+        Schema::dropIfExists('tenant_users');
+        Schema::dropIfExists('tenants');
+
+        Schema::dropIfExists('personal_access_tokens');
+        Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
+
+        Schema::dropIfExists('failed_jobs');
+        Schema::dropIfExists('job_batches');
+        Schema::dropIfExists('jobs');
+
+        Schema::dropIfExists('cache_locks');
+        Schema::dropIfExists('cache');
+        Schema::dropIfExists('settings');
     }
 };
