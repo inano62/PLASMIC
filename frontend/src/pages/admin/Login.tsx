@@ -1,42 +1,27 @@
-// src/pages/admin/AdminLogin.tsx
+// src/pages/admin/Login.tsx
 import { useNavigate } from "react-router-dom";
-import { useState,createContext, useContext,  } from "react";
-import {postWeb} from "../../lib/api"; // 既存の api.ts（/sanctum/csrf-cookie 済み）
+import { useState} from "react";
+import { useAuth } from "../../contexts/auth";
 
 export default function Login() {
     const nav = useNavigate();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const { login, refresh } = useAuth();
+    const [email, setEmail] = useState("admin@example.com"); // 開発中はデフォルト入れておくと楽
+    const [password, setPassword] = useState("password");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    type User = { id:number; name:string; email:string; role?:string } | null;
-    const AuthContext = createContext<{ user:User; setUser:(u:User)=>void }>({ user:null, setUser:()=>{} });
-    function useAuth() { return useContext(AuthContext); }
-    const {setUser} = useAuth();
 
     async function submit(e: React.FormEvent) {
         e.preventDefault();
-        setError(null);
-        setLoading(true);
+        setError(null); setLoading(true);
         try {
-            // 1) web直でログイン（Sanctum Cookie）
-            await postWeb("/login", { email, password }); // 204想定
-            // 2) 認証済みユーザ取得（失敗したら catch）
-            const me = await postWeb<{ id: number; name: string; email: string;role?:string }>("/user");
-            setUser(me);
-            if (me.role !== "admin") {
-                setError("管理者権限がありません");
-                return;
-            }
-            // 3) とりあえず管理画面へ
+            await login(email, password);   // ← /api/auth/token
+            await refresh();                // ← /api/whoami
             nav("/admin/site", { replace: true });
-        } catch (err: unknown) {
-            let msg = "ログインに失敗しました。";
-            const e = err as { status?: number };
-            if (e?.status === 422) msg = "メールまたはパスワードが違います。";
-            if (e?.status === 401) msg = "認証に失敗しました。";
-            if (e?.status === 419) msg = "CSRFが失効しました。ページを再読み込みしてください。";
-            setError(msg);
+        } catch (err: any) {
+            const s = err?.response?.status;
+            if (s === 401) setError("メールまたはパスワードが違います。");
+            else setError(err?.response?.data?.message || "ログインに失敗しました。");
         } finally {
             setLoading(false);
         }

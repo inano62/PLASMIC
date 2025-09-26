@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
-import API from "../lib/api";
+import {api} from "../lib/api";
 
 type Tenant = { id: number; display_name: string };
 type Pro = { id?: number; user_id?: number; name: string };
 type SlotDay = { date: string; slots: string[] };
-
+const API = api;
 export default function PublicReserve() {
     const { tenant: tenantFromPath } = useParams();
     const qs = new URLSearchParams(useLocation().search);

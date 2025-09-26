@@ -1,5 +1,6 @@
 <?php
 
+
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\PublicSiteController;
@@ -8,7 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Stripe\StripeClient;
 use App\Http\Middleware\VerifyCsrfToken;
-use App\Models\User;
+use App\Models\{User,Site,Tenant,Page};
 use Laravel\Sanctum\Http\Controllers\CsrfCookieController;
 require __DIR__ . '/auth.php';
 Route::get('/sanctum/csrf-cookie', [CsrfCookieController::class, 'show'])
@@ -42,6 +43,28 @@ Route::post('/signup-and-checkout', function (Request $r) {
             'email'=>$v['email'],
             'password'=>Hash::make($v['password']),
         ]);
+        $tenant = Tenant::create([
+            'slug'         => Str::slug($user->name).'-'.$user->id,
+            'display_name' => $user->name.' 事務所',
+            'region'       => '', // 初期値
+            'type'         => '', // 初期値
+        ]);
+
+        $site = Site::create([
+            'tenant_id' => $tenant->id,
+            'slug'      => $tenant->slug,
+            'title'     => $tenant->display_name,
+            'meta'      => [],
+        ]);
+
+        Page::create([
+            'site_id' => $site->id,
+            'title'   => 'トップページ',
+            'path'    => '/',
+            'sort'    => 1,
+            'blocks'  => json_encode([]), // ダミーブロックは後で追加
+        ]);
+
     }
     if (! Auth::attempt(['email'=>$v['email'],'password'=>$v['password']], true)) {
         return response()->json(['message'=>'パスワードが違います'], 422);

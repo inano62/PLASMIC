@@ -1,9 +1,9 @@
 // src/pages/Offices.tsx
 import { useEffect, useState } from "react";
-import API from "@/lib/api";
+import {api} from "@/lib/api";
 
 type Tenant = { id:number; slug:string; display_name:string; type:string; region:string; home_url?:string|null };
-
+const API = api;
 export default function Offices() {
     const [items, setItems] = useState<Tenant[]>([]);
     const [page, setPage] = useState(1);

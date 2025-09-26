@@ -15,6 +15,11 @@
         html, body, #root { font-family: var(--font-sans); }
         button, input { font-family: inherit; border-radius: 12px; padding: 8px 12px; }
     </style>
-
+    <script>
+        const es = new EventSource('/api/calls/stream');
+        es.addEventListener('call_logs', (e) => {
+            console.table(JSON.parse(e.data));
+        });
+    </script>
   </body>
 </html>

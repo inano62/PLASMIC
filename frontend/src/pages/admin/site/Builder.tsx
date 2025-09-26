@@ -1,7 +1,7 @@
 // frontend/src/pages/admin/site/AdminSiteBuilder.tsx
 import { useEffect, useState } from "react";
 import { Button } from "react-bootstrap";
-import API from "@/lib/api";
+import {api} from "@/lib/api";
 
 import HeroEditor     from "@/components/site-builder/HeroEditor";
 import FeaturesEditor from "@/components/site-builder/FeaturesEditor";
@@ -12,7 +12,7 @@ type Block = { id:number; type:string; sort:number; data:any | null };
 type Page  = { id:number; title:string; path:string; sort:number; blocks: Block[] };
 
 const SITE_ID = 1;
-
+const API = api;
 export default function Builder() {
     const [site, setSite] = useState<Site|null>(null);
     const [pages, setPages] = useState<Page[]>([]);

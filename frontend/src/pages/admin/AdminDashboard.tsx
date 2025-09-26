@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSiteSettings } from "../../lib/siteSettings";
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import IntakePanel from "../../components/admin/IntakePanel";
-import API from "../../lib/api";
+import {api} from "../../lib/api";
 
 type ApptRow = { id: number; client_name: string; starts_at: string; room?: string };
 
@@ -16,7 +16,7 @@ type ApptDetail = {
     hostJoinPath?: string;
     clientJoinPath?: string;
 };
-
+const API = api
 const ADMIN_TOKEN_KEY = "admin.token";
 
 export default function AdminDashboard() {

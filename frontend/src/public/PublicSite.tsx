@@ -8,6 +8,7 @@ import HeaderBlock from "./blocks/HeaderBlock.tsx";
 import ImageBlock from "./blocks/ImageBlock.tsx";
 import MediaCard from "./blocks/MediaCard";
 import Gallery from "./blocks/Gallery";
+import {api} from "../lib/api.ts";
 
 type ApiResp = {
     site: { title: string; slug: string };
@@ -50,7 +51,7 @@ export default function PublicSite() {
             try {
                 setErr(null);
                 setData(null);
-                const res = await fetch(`/api/public/sites/${slug}/page?path=${encodeURIComponent(path)}`);
+                const res = await fetch(`${import.meta.env.VITE_API_ORIGIN ?? "http://localhost:8000"}/api/public/sites/${slug}/page?path=${encodeURIComponent(path)}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json: ApiResp = await res.json();
                 if (!ignore) {

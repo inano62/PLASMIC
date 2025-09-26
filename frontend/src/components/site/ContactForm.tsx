@@ -1,6 +1,6 @@
 // frontend/src/components/site/ContactForm.tsx
 import { useState } from "react";
-import API from "../../lib/api"; // 既存の API ヘルパ（VITE_API_BASE を使うやつ）
+import {api} from "../../lib/api"; // 既存の API ヘルパ（VITE_API_BASE を使うやつ）
 
 export default function ContactForm({ siteSlug = "demo" }: { siteSlug?: string }) {
     const [name, setName] = useState("");
@@ -9,7 +9,7 @@ export default function ContactForm({ siteSlug = "demo" }: { siteSlug?: string }
     const [message, setMessage] = useState("");
     const [sending, setSending] = useState(false);
     const [done, setDone] = useState(false);
-
+    const API = api;
     async function submit(e: React.FormEvent) {
         e.preventDefault();
         if (!email || !message) { alert("メールと本文は必須です"); return; }

@@ -2,11 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/dist/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite + React + TS</title>
-    <script type="module" crossorigin src="/dist/assets/index-H9Voq4WB.js"></script>
-    <link rel="stylesheet" crossorigin href="/dist/assets/index-BfydQp5q.css">
+    <script type="module" crossorigin src="/assets/index-DLCV1mSa.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-mj-XZCns.css">
   </head>
   <body>
     <div id="root"></div>
@@ -16,6 +16,11 @@
         html, body, #root { font-family: var(--font-sans); }
         button, input { font-family: inherit; border-radius: 12px; padding: 8px 12px; }
     </style>
-
+    <script>
+        const es = new EventSource('/api/calls/stream');
+        es.addEventListener('call_logs', (e) => {
+            console.table(JSON.parse(e.data));
+        });
+    </script>
   </body>
 </html>

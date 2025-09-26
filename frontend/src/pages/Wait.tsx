@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
 // ✅ 必要なものだけ import
-import API from "@/lib/api";
+import {api} from "../lib/api";
 
 
 type S = { room?: string; token?: string; url?: string; err?: string };
-
+const API = api
 export default function Wait() {
     const [state, setState] = useState<S>({});
 

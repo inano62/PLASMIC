@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Auth;
 use Stripe\StripeClient;
 use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\Webhook;
+use App\Services\SiteProvisioner;
+use App\Models\Tenant;
 
 class BillingController extends Controller
 {
@@ -91,81 +93,95 @@ class BillingController extends Controller
             'customer_id'     => is_string($customer) ? $customer : $customer->id,
         ]);
     }
-    public function webhook(Request $request)
+    public function webhook(Request $request,SiteProvisioner $prov)
     {
+        $secret = config('services.stripe.webhook_secret') ?? env('STRIPE_WEBHOOK_SECRET');
         $payload = $request->getContent();
         $sig     = $request->header('Stripe-Signature');
-        $secret  = config('services.stripe.webhook_secret');
 
         try {
-            $event = Webhook::constructEvent($payload, $sig, $secret);
+            $event = \Stripe\Webhook::constructEvent($payload, $sig, $secret);
         } catch (\Throwable $e) {
-            \Log::warning('stripe webhook signature failed', ['err' => $e->getMessage()]);
-            return response()->json(['error' => $e->getMessage()], 400);
+            return response('invalid signature', 400);
         }
 
         switch ($event->type) {
-            case 'checkout.session.completed': {
-                $s = $event->data->object;
+            case 'checkout.session.completed':
+                $session = $event->data->object; // \Stripe\Checkout\Session
 
-                $customerId     = is_string($s->customer) ? $s->customer : ($s->customer->id ?? null);
-                $subscriptionId = is_string($s->subscription) ? $s->subscription : ($s->subscription->id ?? null);
+                // すでに処理済みならスキップ（冪等化は必要に応じてイベントID記録でもOK）
+                $userId = (int)($session->client_reference_id ?? ($session->metadata->user_id ?? 0));
+                if (!$userId) break;
 
-                // 1) metadata / client_reference_id からユーザー特定
-                $uid  = $s->metadata->user_id ?? $s->client_reference_id ?? null;
-                $user = $uid ? User::find($uid) : null;
+                $user = User::find($userId);
+                if (!$user) break;
 
-                // 2) それでも見つからなければ customer でひも付け
-                if (!$user && $customerId) {
-                    $user = User::where('stripe_customer_id', $customerId)->first();
-                }
-
-                if ($user) {
-                    $user->stripe_customer_id    = $customerId ?: $user->stripe_customer_id;
-                    $user->stripe_subscription_id = $subscriptionId ?: $user->stripe_subscription_id;
-                    $user->subscription_status   = 'active';
-                    $user->stripe_status         = 'active';
+                // Stripe customer を保存（初回のみ）
+                if (!$user->stripe_customer_id && $session->customer) {
+                    $user->stripe_customer_id = $session->customer;
                     $user->save();
-                } else {
-                    \Log::warning('no user for checkout.session.completed', [
-                        'uid' => $uid, 'customer' => $customerId
-                    ]);
                 }
+
+                // ★ ここでテナント & サイトを冪等に作成
+                $tenant = Tenant::firstOrCreate(
+                    ['owner_user_id' => $user->id], // 主キーの方針に合わせてキーを選ぶ
+                    [
+                        'display_name' => $user->name . ' 事務所',
+                        'slug'         => $this->slugFromName($user->name), // 下の補助関数例
+                        'region'       => null,
+                        'type'         => null,
+                    ]
+                );
+
+                // オーナー権限の付与（中間テーブルがある場合）
+                if (method_exists($tenant, 'members')) {
+                    $tenant->members()->syncWithoutDetaching([$user->id => ['role' => 'owner']]);
+                }
+
+                // サイト雛形を作成（冪等）
+                $site = $prov->provisionForTenant($tenant);
+
+                // 任意：published JSON をここで生成したければ Publisher を呼ぶ
+                // app(SitePublisher::class)->publish($site);
+
                 break;
-            }
 
             case 'customer.subscription.created':
             case 'customer.subscription.updated':
-            case 'customer.subscription.deleted': {
-                $sub    = $event->data->object;
-                $status = $sub->status; // active, trialing, canceled, past_due 等
-
-                $user = User::where('stripe_subscription_id', $sub->id)->first()
-                    ?: User::where('stripe_customer_id', $sub->customer)->first();
-
-                if ($user) {
-                    $user->stripe_subscription_id = $sub->id;
-                    $user->subscription_status    = $status;
-                    $user->stripe_status          = $status;
-                    $user->save();
-                } else {
-                    \Log::warning('no user for subscription event', [
-                        'sub' => $sub->id, 'customer' => $sub->customer
-                    ]);
-                }
+                // 必要なら購読状態を user/tenant に反映（active/canceled 等）
                 break;
-            }
         }
 
-        return response()->noContent(); // 204
+        return response('ok', 200);
     }
-    public function session(string $sid) {
+    private function slugFromName(string $name): string
+    {
+        $base = \Str::slug($name, '-');               // 例: "山田太郎 事務所" → "shan-tang"
+        $base = $base ?: ('office-'.\Str::random(6)); // すべて非ASCIIの保険
+        $slug = $base;
+        $i = 1;
+        while (Tenant::where('slug', $slug)->exists()) {
+            $slug = $base.'-'.$i++;
+        }
+        return $slug;
+    }
+    public function session(string $sid,SiteProvisioner $prov) {
         try {
             $stripe = new \Stripe\StripeClient(config('services.stripe.secret')); // envよりconfig経由で統一
             $s = $stripe->checkout->sessions->retrieve($sid, [
                 'expand' => ['subscription', 'customer', 'payment_intent'],
             ]);
 
+            if (($site->payment_status ?? null) !== 'paid') {
+                abort(409, 'not paid');
+            }
+            $userId = (int)($session->client_reference_id ?? ($session->metadata->user_id ?? 0));
+            $user = User::findOrFail($userId);
+
+            $tenant = Tenant::firstOrCreate(
+                ['owner_user_id'=>$user->id],
+                ['display_name'=>$user->name.' 事務所','slug'=>$this->slugFromName($user->name)]
+            );
             // customer
             $customerId = null;
             if (isset($s->customer)) {
@@ -177,7 +193,7 @@ class BillingController extends Controller
             if (isset($s->subscription)) {
                 $subscriptionId = is_string($s->subscription) ? $s->subscription : ($s->subscription->id ?? null);
             }
-
+            $site = $prov->provisionForTenant($tenant);
             return response()->json([
                 'id'               => $s->id,
                 'status'           => $s->payment_status,          // 'paid' / 'unpaid' / 'no_payment_required'
@@ -186,6 +202,8 @@ class BillingController extends Controller
                 'subscription_id'  => is_string($s->subscription) ? $s->subscription : ($s->subscription->id ?? null),
                 'amount_total'     => $s->amount_total ?? null,
                 'currency'         => $s->currency ?? null,
+                'tenant_id'        => $tenant->only('id,slug'),
+                'site'             => $site->only('id,slug'),
             ]);
         } catch (\Throwable $e) {
             \Log::error('Stripe session retrieve failed', ['sid'=>$sid, 'e'=>$e->getMessage()]);

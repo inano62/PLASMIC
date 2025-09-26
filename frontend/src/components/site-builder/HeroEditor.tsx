@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button } from "react-bootstrap";
 import { uploadImage } from "@/lib/upload";
-import API from "@/lib/api";
+import {api} from "@/lib/api";
 
 type HeroData = {
     kicker?: string;
@@ -19,7 +19,7 @@ type Props = {
     data: any;
     onSave: (diff: any)=>void;
 };
-
+const API = api;
 export default function HeroEditor({
                                        data,
                                        onSave,

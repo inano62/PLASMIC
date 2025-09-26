@@ -1,7 +1,7 @@
 // src/components/BookingForm.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import API from "@/lib/api";
+
 function toLocalDatetimeValue(iso?: string) {
     if (!iso) return "";
     const d = new Date(iso);

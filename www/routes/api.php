@@ -14,7 +14,8 @@ use App\Http\Controllers\{
     ReservationController,
     StripeController,
     ClientController,
-    MediaController
+    MediaController,
+    CallLogController
 };
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +23,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Firebase\JWT\JWT;   // ← 追加
 use Firebase\JWT\Key;
-use App\Models\User;
+use Illuminate\Support\Facades\Log;
+use App\Models\{User,CallLog,CallMessage};
 use Laravel\Sanctum\PersonalAccessToken;
 
 Route::get('/__dbcheck', function () {
@@ -109,7 +111,28 @@ Route::prefix('public')->group(function () {
         ]);
     });
 });
+Route::get('/calls/debug/{room}', function ($room) {
+    $row = \App\Models\CallLog::where('room_name', $room)
+        ->orderByDesc('id')
+        ->first(['id','room_name','started_at','ended_at','duration_sec','meta']);
 
+    return response()->json($row); // ← これで確実にJSONが出る
+});
+
+
+Route::get('/calls/stream', function () {
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    while (true) {
+        $rows = \App\Models\CallLog::orderByDesc('id')->limit(10)->get([
+            'id','room_name','started_at','ended_at','duration_sec'
+        ]);
+        echo "event: call_logs\n";
+        echo "data: ".json_encode($rows)."\n\n";
+        @ob_flush(); flush();
+        sleep(1);
+    }
+});
 
 // ───── テナント配下（ID/slug どちらでもOKにしているならルートモデルに合わせて） ─────
 Route::prefix('tenants/{tenant}')->group(function () {
@@ -200,11 +223,16 @@ Route::post('/auth/token', function (Request $r) {
     ]);
 });
 Route::post('/signup-and-checkout', [StripeController::class, 'signupAndCheckout']);
+Route::post('/calls/event', [CallLogController::class, 'store']);
 Route::match(['GET','POST'], '/video/token', function (Request $r) {
+
     $room   = $r->input('room') ?: $r->query('room');
     $ticket = $r->input('ticket') ?: $r->query('ticket');
     $aid    = $r->input('aid') ?: $r->query('aid');
 
+    $appointment = \App\Models\Appointment::find($aid);
+    $hostId  = $appointment?->lawyer_user_id ?? auth()->id();
+    $guestId = $appointment?->client_user_id;
     // ticket → room_name
     if (!$room && $ticket) {
         try {
@@ -233,6 +261,21 @@ Route::match(['GET','POST'], '/video/token', function (Request $r) {
     ];
     $jwt = JWT::encode($claims, $apiSecret, 'HS256');
 
+    $log = CallLog::firstOrCreate(
+        ['room_name'=>$room, 'started_at'=>now()->subMinutes(10)], // 実運用は厳密キーを工夫
+        [
+            'appointment_id'=>$aid,
+            'host_user_id'=>$hostId,
+            'guest_user_id'=>$guestId,
+            'started_at'=>now()
+        ]
+    );
+    $log->update([
+        'ended_at' => now(),
+        'duration_sec' => $log->started_at
+            ? $log->started_at->diffInSeconds(now(), true)
+            : null,
+    ]);
     // フロントの揺れに両対応
     return response()->json([
         'url'         => $wsUrl,
@@ -242,6 +285,20 @@ Route::match(['GET','POST'], '/video/token', function (Request $r) {
         'room'        => $room,
         'identity'    => $identity,
     ]);
+});
+Route::post('/video/call/end', function (Request $r) {
+    $room = $r->input('room');
+    abort_unless($room, 400, 'room required');
+
+    $log = CallLog::where('room_name', $room)->latest('id')->first();
+    if (!$log) return response()->json(['ok'=>true]); // ないなら黙ってOK
+
+    $ended = now();
+    $log->ended_at    = $ended;
+    $log->duration_sec= $log->started_at ? $ended->diffInSeconds($log->started_at) : null;
+    $log->save();
+
+    return ['ok'=>true];
 });
 
 // ローカル互換：/api/dev/token を /api/video/token に寄せる

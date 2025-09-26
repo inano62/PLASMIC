@@ -1,13 +1,13 @@
 // src/components/admin/IntakePanel.tsx
 import { useState } from "react";
-import API from "../../lib/api";
+import {api} from "../../lib/api";
 
 type Msg = { id:number; from:"client"|"admin"|"system"; text:string; at:string };
 type Inquiry = {
     id:number; name:string; email:string; topic:string; message:string;
     status:"new"|"approved"|"declined"|"spam";
 };
-
+const API = api;
 const templates = {
     askMore: "状況把握のため、①対象の不動産/案件、②期限の有無、③希望の対応方法を教えてください。",
     approve: "ご相談内容は当事務所の業務範囲です。ビデオ面談で詳しく伺います。事前に身分証をご用意ください。",

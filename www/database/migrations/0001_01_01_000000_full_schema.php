@@ -317,6 +317,30 @@ return new class extends Migration
             $t->integer('size')->nullable();
             $t->timestamps();
         });
+        Schema::create('call_logs', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('appointment_id')->nullable()->constrained()->nullOnDelete();
+            $t->string('room_name')->index();
+            $t->foreignId('host_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $t->foreignId('guest_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $t->unsignedInteger('consultation_fee')->nullable()->after('duration_sec');
+            $t->string('checkout_session_id')->nullable()->after('consultation_fee')->index();
+            $t->json('meta')->nullable()->after('checkout_session_id');
+            $t->timestamp('started_at');
+            $t->timestamp('ended_at')->nullable();
+            $t->unsignedInteger('duration_sec')->nullable();
+            $t->string('outcome')->nullable(); // 'closed','no_show','reschedule' など
+            $t->text('summary')->nullable();
+            $t->timestamps();
+        });
+
+        Schema::create('call_messages', function (Blueprint $t) {
+            $t->id();
+            $t->foreignId('call_log_id')->constrained()->cascadeOnDelete();
+            $t->foreignId('sender_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $t->text('content');
+            $t->timestamp('sent_at')->useCurrent();
+        });
     }
 
     public function down(): void
@@ -351,5 +375,8 @@ return new class extends Migration
         Schema::dropIfExists('cache_locks');
         Schema::dropIfExists('cache');
         Schema::dropIfExists('settings');
+
+        Schema::dropIfExists('call_logs');
+        Schema::dropIfExists('call_messages');
     }
 };

@@ -12,8 +12,8 @@
 //     return res.json();
 // }
 // frontend/src/lib/upload.ts
-import API from "@/lib/api";
-
+import {api} from "@/lib/api";
+const API = api;
 export async function uploadImage(file: File): Promise<string> {
     const fd = new FormData();
     fd.append("file", file);

@@ -62,78 +62,102 @@ class PublicSiteApiController extends Controller
     }
 
     // GET /api/public/sites/{slug}/page?path=/about
-    public function page(Request $r, $slug)
+    public function page(Request $r, string $slug)
     {
-
         $path = $r->query('path', '/');
 
-        // 1) サイトは必須（無ければ404）
-        $site = Site::where('slug', $slug)->firstOrFail();
+        // 1) Site or fallback-to-Tenant
+        $site = Site::where('slug', $slug)->first();
 
-        // 2) ページは任意（無ければフォールバックJSONを返す）
-        $page = Page::where('site_id', $site->id)->where('path', $path)->first();
-
-        if (!$page) {
-            // ダミー情報を返す
-            return response()->json([
-                'site' => $site->only('id','title','slug','meta'),
-                'page' => [
-                    'id'    => 0,
-                    'title' => $site->title,
-                    'path'  => $path,
-                    'sort'  => 0,
-                    'blocks'=> [
-                        [
+        // Siteが無い場合は Tenant を見てダミーを返す（nullを触らない）
+        if (!$site) {
+            if ($t = Tenant::where('slug', $slug)->first()) {
+                return response()->json([
+                    'site' => [
+                        'id'    => 0,
+                        'title' => $t->display_name ?? $slug,
+                        'slug'  => $t->slug,
+                        'meta'  => [],
+                    ],
+                    'page' => [
+                        'id'    => 0,
+                        'title' => $t->display_name ?? $slug,
+                        'path'  => $path,
+                        'sort'  => 0,
+                        'blocks'=> [[
                             'id'   => 1,
                             'type' => 'hero',
                             'sort' => 1,
                             'data' => [
-                                'title'    => $site->title,
+                                'title'    => $t->display_name ?? $slug,
                                 'subtitle' => '所在地: 未登録 / 電話: 未登録',
-                                'actions'  => [
-                                    ['label'=>'予約する','href'=>"/book?site={$site->id}"],
-                                ],
+                                'actions'  => [['label'=>'予約する','href'=>"/book?tenant={$t->id}"]],
                             ],
-                        ],
+                        ]],
                     ],
+                ]);
+            }
+
+            // Tenant すら無いなら、slug だけで完全ダミー
+            return response()->json([
+                'site' => ['id'=>0, 'title'=>$slug, 'slug'=>$slug, 'meta'=>[]],
+                'page' => [
+                    'id'=>0,'title'=>$slug,'path'=>$path,'sort'=>0,
+                    'blocks'=>[[
+                        'id'=>1,'type'=>'hero','sort'=>1,
+                        'data'=>[
+                            'title'=>$slug,
+                            'subtitle'=>'所在地: 未登録 / 電話: 未登録',
+                            'actions'=>[['label'=>'予約する','href'=>"/book"]],
+                        ],
+                    ]],
                 ],
             ]);
         }
-        // ← ここからは従来どおり（Page が無ければフォールバックでもOK）
-        $page = Page::where('site_id', $site->id)->where('path', $path)->first();
-//        if (!$page) {
-//            $tenant = $tenant ?: Tenant::find($site->tenant_id);
-//            return response()->json([
-//                'site' => $site->only('id','title','slug','meta'),
-//                'page' => [
-//                    'id'=>0,'title'=>$site->title ?? ($tenant->display_name ?? '事務所ページ'),'path'=>$path,'sort'=>0,
-//                    'blocks'=>[
-//                        ['id'=>0,'type'=>'hero','sort'=>1,'data'=>[
-//                            'title'=>$site->title ?? ($tenant->display_name ?? '事務所ページ'),
-//                            'subtitle'=>trim(($tenant->region ?? '').'・'.($tenant->type ?? '')),
-//                            'actions'=>[['label'=>'予約する','href'=>"/book?tenant={$tenant->id}"]],
-//                        ]],
-//                    ],
-//                ],
-//            ]);
-//        }
 
+        // 2) Page は任意。無ければダミーを返す（$site は確実に存在）
+        $page = Page::where('site_id', $site->id)->where('path', $path)->first();
+
+        if (!$page) {
+            return response()->json([
+                'site' => $site->only('id','title','slug','meta'),
+                'page' => [
+                    'id'=>0,'title'=>$site->title,'path'=>$path,'sort'=>0,
+                    'blocks'=>[[
+                        'id'=>1,'type'=>'hero','sort'=>1,
+                        'data'=>[
+                            'title'=>$site->title,
+                            'subtitle'=>'所在地: 未登録 / 電話: 未登録',
+                            'actions'=>[['label'=>'予約する','href'=>"/book?site={$site->id}"]],
+                        ],
+                    ]],
+                ],
+            ]);
+        }
+
+        // 3) 通常ルート
         $page->load(['blocks' => fn($q) => $q->orderBy('sort')]);
 
         return response()->json([
             'site' => $site->only('id','title','slug','meta'),
             'page' => [
-                'id'=>$page->id,'title'=>$page->title,'path'=>$page->path,'sort'=>$page->sort,
-                'blocks'=>$page->blocks->map(function($b){
-                    $data = is_array($b->data) ? $b->data : (json_decode($b->data,true) ?? []);
+                'id'   => $page->id,
+                'title'=> $page->title,
+                'path' => $page->path,
+                'sort' => $page->sort,
+                'blocks' => $page->blocks->map(function ($b) {
+                    $data = is_array($b->data) ? $b->data : (json_decode($b->data, true) ?? []);
                     if (!empty($data['imgId']) && empty($data['imgUrl'])) {
-                        if ($m = Media::find($data['imgId'])) $data['imgUrl'] = Storage::disk('public')->url($m->path);
+                        if ($m = Media::find($data['imgId'])) {
+                            $data['imgUrl'] = Storage::disk('public')->url($m->path);
+                        }
                     }
                     return ['id'=>$b->id,'type'=>$b->type,'sort'=>$b->sort,'data'=>$data];
                 })->values(),
             ],
         ]);
     }
+
     public function tenantsList(Request $r)
     {
         $q      = trim((string) $r->query('q', ''));
