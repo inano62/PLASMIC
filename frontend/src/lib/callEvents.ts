@@ -1,11 +1,12 @@
 // src/lib/callEvents.ts
 import { v4 as uuid } from 'uuid';
 
-const API_BASE =
-    import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'; // ← ここを使う
+// 空文字が入ってもフォールバックするように || を使う
+const RAW = (import.meta.env.VITE_API_BASE ?? '').trim();
+const API_BASE = RAW || 'http://localhost:8000/api';
 
-const urlJoin = (base: string, path: string) =>
-    base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
+// 先頭スラッシュを付けないのがポイント
+const callsEventUrl = new URL('api/calls/event', API_BASE).toString();
 
 function postEvent(url: string, payload: any) {
     const body = JSON.stringify(payload);
@@ -21,12 +22,22 @@ function postEvent(url: string, payload: any) {
         body,
         keepalive: true,
         credentials: 'omit',
-    }).then(() => {}).catch(() => {});
+    }).catch(() => {});
 }
 
-export function emitCallEvent(roomName: string, type:'start'|'end'|'heartbeat'|'error'|'silence', data:any = {}) {
+export function emitCallEvent(
+    roomName: string,
+    type: 'start'|'end'|'heartbeat'|'error'|'silence',
+    data: any = {}
+) {
     if (!roomName) return;
-    const payload = { room: roomName, type, ts: new Date().toISOString(), event_id: uuid(), ...data };
+    const payload = {
+        room: roomName,
+        type,
+        ts: new Date().toISOString(),
+        event_id: uuid(),
+        ...data,
+    };
     console.debug('[emit]', type, roomName, payload);
-    return postEvent(join(API_BASE, '/calls/event'), payload); // ← ここをAPI_BASEに
+    return postEvent(callsEventUrl, payload);
 }

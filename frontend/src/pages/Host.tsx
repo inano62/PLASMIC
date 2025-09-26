@@ -77,11 +77,14 @@ export default function Host() {
     const localDefault = location.hostname === "localhost" ? "ws://localhost:7880" : undefined;
     const serverUrl = state.url ?? envUrl ?? localDefault ?? "ws://localhost:7880";
 
-    const guestUrl = useMemo(() => {
+    const guestUrl = (() => {
         const u = new URL(location.origin + "/wait");
-        u.searchParams.set("room", state.room!);
+        if (state.room) u.searchParams.set("room", state.room);
         return u.toString();
-    }, [state.room]);
+    })();
+
+    if (state.err) return <div>エラー: {state.err}</div>;
+    if (!state.token || !state.room) return <div>入室準備中…</div>;
 
     return (
         <div style={{ height: "100vh" }}>
