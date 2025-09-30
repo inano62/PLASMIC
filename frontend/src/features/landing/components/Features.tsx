@@ -1,26 +1,13 @@
-import React, { useEffect, useState } from "react";
-import { api } from "@/helpers/api";
-import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
-import type {FeatureCard} from "../model/types.ts";
-export function Features(features:FeatureCard[]){
-    console.log(features)
+import  { useState} from "react";
+import {Link} from "react-router-dom";
+import {Button} from "react-bootstrap";
+
+
+export function Features() {
     const [s, setS] = useState<any>({});
-    const [tenants, setTenants] = useState<any[]>([]);
-    const [slots, setSlots] = useState<any[]>([]);
-    const [tenantId, setTenantId] = useState<number>();
-    useEffect(()=>{ (async()=>{
-        setTenants(await api("/api/public/tenants"));
-    })(); },[]);
-    useEffect(()=>{ if(!tenantId) return; (async()=>{
-        const from = new Date().toISOString();
-        const to = new Date(Date.now()+7*86400000).toISOString();
-        setSlots(await api(`/api/public/tenants/${tenantId}/slots?from=${from}&to=${to}`));
-    })(); },[tenantId]);
-    useEffect(()=>{ (async()=> setS(await api("/api/settings")))(); },[]);
 
 
-    return(
+    return (
         <div className="max-w-6xl mx-auto p-6">
             <header className="flex items-center justify-between py-4">
                 <div className="font-semibold text-lg">{s["site.name"] ?? "Regal"}</div>

@@ -122,7 +122,7 @@ export default function SignupAndCheckout() {
 
                 <button
                     className="mt-5 w-full rounded-xl bg-indigo-600 text-white py-3 hover:bg-indigo-500 disabled:opacity-60"
-                    disabled={loading || !name || !email || !password || !priceId}
+                    disabled={loading || !name || !email || !password}
                 >
                     {loading ? "処理中…" : "登録して決済へ"}
                 </button>

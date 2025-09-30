@@ -1,12 +1,12 @@
 // src/pages/admin/Login.tsx
 import { useNavigate } from "react-router-dom";
-import { useState} from "react";
+import React, { useState} from "react";
 import { useAuth } from "../../contexts/auth";
 
 export default function Login() {
     const nav = useNavigate();
     const { login, refresh } = useAuth();
-    const [email, setEmail] = useState("admin@example.com"); // 開発中はデフォルト入れておくと楽
+    const [email, setEmail] = useState("jemesouviens1@email.com"); // 開発中はデフォルト入れておくと楽
     const [password, setPassword] = useState("password");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

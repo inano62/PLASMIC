@@ -25,10 +25,10 @@ export default function PlasmicLanding(props: { vertical?: VerticalKey }) {
                 trust={V.trust}
                 reserveHref={V.PublicReserve}
             />
-            <Features features={V.features} />
+            <Features />
             <Pricing signupHref={V.signupLink} />
             <Security />
-            <Faq items={V.faq} />
+            <Faq  />
             <Footer />
         </div>
     );

@@ -10,6 +10,7 @@ use App\Models\Page;
 use App\Models\Block;
 use RecursiveArrayIterator;
 use RecursiveIteratorIterator;
+use Exception;
 
 class SiteBuilderController extends Controller
 {
@@ -17,26 +18,32 @@ class SiteBuilderController extends Controller
      *   ベース実装（旧API名）
      * ========================= */
 
-    // GET /admin/sites/{id}
-    public function show($id)
+    // GET /admin/sites/me/{id}
+    public function show(Request $r)
     {
-        $site = \App\Models\Site::firstOrCreate(
-            ['id' => $id],
-            ['title'=>'Demo Site','slug'=>'demo','meta'=>['theme'=>'default']]
+        $user = $r->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $tenantId = $user->id;
+
+        $site = Site::firstOrCreate(
+            ['tenant_id'=>$tenantId],
+            ['title'=>'Demo Site','slug'=>"tenant-$tenantId",'meta'=>['theme'=>'default']]
         );
 
-        \App\Models\Page::firstOrCreate(
+        Page::firstOrCreate(
             ['site_id'=>$site->id,'path'=>'/'],
             ['title'=>'Home','sort'=>1]
         );
 
-        $pages = \App\Models\Page::where('site_id',$site->id)
+        $pages = Page::where('site_id',$site->id)
             ->orderBy('sort')
             ->with(['blocks'=>fn($q)=>$q->orderBy('sort')])
             ->get();
 
         return response()->json(['site'=>$site,'pages'=>$pages]);
-
     }
 
 
@@ -45,8 +52,8 @@ class SiteBuilderController extends Controller
     {
         $site = Site::findOrFail($id);
         $site->title = $r->input('title', $site->title);
-        $site->slug  = $r->input('slug',  $site->slug);
-        $site->meta  = $r->input('meta',  $site->meta);
+        $site->slug = $r->input('slug', $site->slug);
+        $site->meta = $r->input('meta', $site->meta);
         $site->save();
         return response()->json(['ok' => true]);
     }
@@ -58,22 +65,22 @@ class SiteBuilderController extends Controller
 
         $payload = [
             'site' => [
-                'id'    => $site->id,
+                'id' => $site->id,
                 'title' => $site->title,
-                'slug'  => $site->slug,
-                'meta'  => $site->meta,
+                'slug' => $site->slug,
+                'meta' => $site->meta,
             ],
             'pages' => $site->pages->sortBy('sort')->map(function ($p) {
                 return [
-                    'id'     => $p->id,
-                    'title'  => $p->title,
-                    'path'   => $p->path,
-                    'sort'   => $p->sort,
+                    'id' => $p->id,
+                    'title' => $p->title,
+                    'path' => $p->path,
+                    'sort' => $p->sort,
                     'blocks' => $p->blocks->sortBy('sort')->map(function ($b) {
                         // ★ data をそのまま渡す（avatarUrl / bgUrl を落とさない）
                         $data = is_array($b->data) ? $b->data : (json_decode($b->data, true) ?? []);
                         return [
-                            'id'   => $b->id,
+                            'id' => $b->id,
                             'type' => $b->type,
                             'sort' => $b->sort,
                             'data' => $data,
@@ -98,9 +105,9 @@ class SiteBuilderController extends Controller
 
         $p = new Page();
         $p->site_id = $id;
-        $p->title   = $r->input('title', 'Page');
-        $p->path    = $r->input('path',  '/');
-        $p->sort    = $max + 1;
+        $p->title = $r->input('title', 'Page');
+        $p->path = $r->input('path', '/');
+        $p->sort = $max + 1;
         $p->save();
 
         return response()->json(['id' => $p->id]);
@@ -113,9 +120,9 @@ class SiteBuilderController extends Controller
 
         $b = new Block();
         $b->page_id = $pageId;
-        $b->type    = $r->input('type', 'hero');
-        $b->data    = $r->input('data', []);
-        $b->sort    = $max + 1;
+        $b->type = $r->input('type', 'hero');
+        $b->data = $r->input('data', []);
+        $b->sort = $max + 1;
         $b->save();
 
         return response()->json(['id' => $b->id]);
@@ -139,7 +146,7 @@ class SiteBuilderController extends Controller
     public function reorder(Request $r, $pageId)
     {
         $ids = $r->input('ids', []);
-        DB::transaction(function() use ($ids) {
+        DB::transaction(function () use ($ids) {
             foreach ($ids as $i => $id) {
                 Block::where('id', $id)->update(['sort' => $i + 1]);
             }

@@ -1,36 +1,46 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { AuthApi, setToken } from "@/lib/api";
+import {ADMIN_TOKEN_KEY, AuthApi, setToken} from "../lib/api";
+export type User = { id:number; name:string; email:string; role?: string } | null;
 
-export type User = { id:number; name:string; email:string } | null;
 
-type Ctx = {
-    user: User;
+type TenantMini = { id:number; slug:string; name:string; role:string };
+export type Me = {
+    id:number;
+    name:string;
+    email:string;
+    role?:string;
+    tenants?: TenantMini[];
+    primary_tenant_id?: number|null;
+} | null;
+type AuthCtx = {
+    user: Me;
     loading: boolean;
     login: (email: string, password: string) => Promise<void>;
     logout: () => void;
     refresh: () => Promise<void>;
 };
-
-const AuthContext = createContext<Ctx>({
-    user: null, loading: true,
-    login: async () => {}, logout: () => {}, refresh: async () => {},
-});
-
+const AuthContext = createContext<AuthCtx | undefined>(undefined);
+const MeContext = createContext<Me | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser]   = useState<User>(null);
-    const [loading, setLd]  = useState(true);
+    const [user, setUser] = useState<User>(null);
+    const [loading, setLoading] = useState(true);
 
     const refresh = async () => {
         try {
-            const res = await AuthApi.me();
-            setUser(res.user ?? null);
+            const me = await AuthApi.me();
+            setUser(me);
         } catch {
             setUser(null);
+            setToken(null);
+        } finally {
+            setLoading(false);
         }
     };
 
     useEffect(() => {
-        (async () => { await refresh(); setLd(false); })();
+        const hasToken = !!localStorage.getItem(ADMIN_TOKEN_KEY);
+        if (hasToken) refresh();       // ★ トークンがある時だけ /me
+        else setLoading(false);        // ★ 無ければ即 loading を解除
     }, []);
 
     const login = async (email: string, password: string) => {
@@ -38,15 +48,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(res.token);
         setUser(res.user);
     };
+
     const logout = () => {
+        AuthApi.logout();
         setToken(null);
         setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading: loading, login, logout, refresh }}>
+        <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
             {children}
         </AuthContext.Provider>
     );
 }
-export const useAuth = () => useContext(AuthContext);
+/* eslint-disable react-refresh/only-export-components */
+
+export function useAuth() {
+    const ctx = useContext(AuthContext);;
+    if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
+    return ctx;
+}
+
+

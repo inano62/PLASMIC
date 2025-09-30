@@ -1,7 +1,7 @@
 // src/features/landing/hooks/useTenantRequired.ts
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import {api} from "@/lib/api";
+import {api} from "../../../lib/api";
 
 type Tenant = { id:number; slug:string; display_name:string; home_url?:string };
 const API = api;

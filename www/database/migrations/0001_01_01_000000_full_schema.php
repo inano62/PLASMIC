@@ -323,9 +323,9 @@ return new class extends Migration
             $t->string('room_name')->index();
             $t->foreignId('host_user_id')->nullable()->constrained('users')->nullOnDelete();
             $t->foreignId('guest_user_id')->nullable()->constrained('users')->nullOnDelete();
-            $t->unsignedInteger('consultation_fee')->nullable()->after('duration_sec');
-            $t->string('checkout_session_id')->nullable()->after('consultation_fee')->index();
-            $t->json('meta')->nullable()->after('checkout_session_id');
+            $t->unsignedInteger('consultation_fee')->nullable();
+            $t->string('checkout_session_id')->nullable()->index();
+            $t->json('meta')->nullable();
             $t->timestamp('started_at');
             $t->timestamp('ended_at')->nullable();
             $t->unsignedInteger('duration_sec')->nullable();

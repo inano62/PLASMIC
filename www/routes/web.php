@@ -12,6 +12,11 @@ use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\{User,Site,Tenant,Page};
 use Laravel\Sanctum\Http\Controllers\CsrfCookieController;
 require __DIR__ . '/auth.php';
+// routes/web.php の上のほうに追加（他の /login ルートより前に）
+Route::redirect('/login', '/admin/login')->name('login.redirect');
+Route::redirect('/register', '/admin/login');
+Route::redirect('/password/*', '/admin/login'); // 念のため
+
 Route::get('/sanctum/csrf-cookie', [CsrfCookieController::class, 'show'])
     ->middleware('web');
 Route::post('/login', function (Request $r) {
@@ -125,18 +130,6 @@ Route::post('/register', function (Request $r) {
     return response()->json(['ok'=>true, 'user'=>$user], 201);
 });
 
-//Route::post('/login', function (Illuminate\Http\Request $r) {
-//    logger()->info('LOGIN_PAYLOAD', $r->only('email','password')); // 一時ログ
-//    $cred = $r->validate([
-//        'email'    => 'required|email',
-//        'password' => 'required',
-//    ]);
-//    if (!\Illuminate\Support\Facades\Auth::attempt($cred)) {
-//        return response()->json(['message' => 'Invalid credentials'], 422);
-//    }
-//    $r->session()->regenerate();
-//    return response()->noContent();
-//});
 Route::post('/logout', function (Request $r) {
     Auth::guard('web')->logout();
     $r->session()->invalidate();
@@ -145,5 +138,5 @@ Route::post('/logout', function (Request $r) {
 });
 Route::get('/thanks', [BillingController::class, 'thanks'])->name('billing.thanks');
 // デバッグ
-Route::get('/me', fn(Request $r) => response()->json($r->user()));
+//Route::get('/me', fn(Request $r) => response()->json($r->user()));
 

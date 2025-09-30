@@ -1,9 +1,6 @@
 // src/pages/admin/Dashboard.tsx
 import { useNavigate } from "react-router-dom";
-import { useSiteSettings } from "../../lib/siteSettings";
-import React, {useEffect, useMemo, useRef, useState} from "react";
-import IntakePanel from "../../components/admin/IntakePanel";
-import {api} from "../../lib/api";
+import  {useEffect, useRef, useState} from "react";
 
 type ApptRow = { id: number; client_name: string; starts_at: string; room?: string };
 
@@ -16,7 +13,7 @@ type ApptDetail = {
     hostJoinPath?: string;
     clientJoinPath?: string;
 };
-const API = api
+
 const ADMIN_TOKEN_KEY = "admin.token";
 
 export default function AdminDashboard() {
@@ -25,12 +22,6 @@ export default function AdminDashboard() {
     const [detailError, setDetailError] = useState<string|null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const detailAbortRef = useRef<AbortController|null>(null);
-    useEffect(() => {
-        fetch("/api/appointments/nearby?lawyer_id=1")
-            .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-            .then(setRows)
-            .catch((e) => console.error("fetch appointments failed", e));
-    }, []);
 
     function canStart(iso: string) {
         const start = new Date(iso).getTime();
@@ -41,15 +32,15 @@ export default function AdminDashboard() {
     }
 
     // 今週の 9:00〜17:30 / 30分グリッド（今は未表示のまま維持）
-    const grid = useMemo(() => {
-        const now = new Date();
-        const monday = new Date(now);
-        const d = (now.getDay() + 6) % 7;
-        monday.setDate(now.getDate() - d);
-        const days = [...Array(5)].map((_, i) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
-        const slots = [...Array(17)].map((_, i) => i);
-        return { days, slots };
-    }, []);
+    // const grid = useMemo(() => {
+    //     const now = new Date();
+    //     const monday = new Date(now);
+    //     const d = (now.getDay() + 6) % 7;
+    //     monday.setDate(now.getDate() - d);
+    //     const days = [...Array(5)].map((_, i) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
+    //     const slots = [...Array(17)].map((_, i) => i);
+    //     return { days, slots };
+    // }, []);
 
     const nav = useNavigate();
 
@@ -59,22 +50,6 @@ export default function AdminDashboard() {
             nav("/admin", { replace: true });
         }
     }, [nav]);
-
-    const s = useSiteSettings();
-    const [draft, setDraft] = useState({ ...s });
-
-    function onChange<K extends keyof typeof draft>(k: K, v: (typeof draft)[K]) {
-        setDraft((prev) => ({ ...prev, [k]: v }));
-    }
-
-    async function save() {
-        s.overwrite?.(draft);
-        try {
-            alert("保存しました");
-        } catch (e) {
-            alert("サーバ保存に失敗しました");
-        }
-    }
 
     async function openDetail(id: number) {
         setLoadingDetail(true);
@@ -125,7 +100,6 @@ export default function AdminDashboard() {
         );
         location.href = `mailto:${ap.client_email}?subject=${subj}&body=${body}`;
     }
-
     return (
         <div>
             <div className="mt-8 grid md:grid-cols-2 gap-8">

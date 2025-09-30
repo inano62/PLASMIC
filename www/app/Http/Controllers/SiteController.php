@@ -3,19 +3,27 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\Site;
+use Illuminate\Support\Str;
 
 class SiteController extends Controller
 {
-    public function index(Request $req)
-    {
-        $u = $req->user();
-        // ここはビューでもJSONでもOK。今回はフロントがViteなのでJSON例
-        return response()->json([
-            'can_build' => $u->canBuildSite(),
-            'has_pro'   => $u->hasPro(),
-        ]);
+    public function index(Request $r) {
+        return Site::where('owner_id', $r->user()->id)->get();
     }
-
+    public function store(Request $r) {
+        $data = $r->validate([
+            'title' => 'required|string|max:120',
+            'slug'  => 'nullable|string|alpha_dash|unique:sites,slug',
+        ]);
+        $site = Site::create([
+            'title' => $data['title'],
+            'slug'  => $data['slug'] ?? Str::slug($data['title']),
+            'owner_id' => $r->user()->id,
+            'status' => 'draft',
+        ]);
+        return response()->json($site, 201);
+    }
     public function publish(Request $req)
     {
         abort_unless($req->user()->hasPro(), 402, 'サイト公開には Pro が必要です'); // 402 Payment Required

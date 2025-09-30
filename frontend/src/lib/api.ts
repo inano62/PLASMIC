@@ -1,60 +1,91 @@
 // src/lib/api.ts
 import axios from "axios";
 
-export type ApiPath = `/api/${string}`; // /api/*
-export type WebPath = `/${string}`;     // /login など（/api/*はNG）
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api";
-const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
-// let TOKEN: string | null = null;
-// export function setToken(token: string | null) { TOKEN = token; }
+export const ADMIN_TOKEN_KEY = "admin_token";
 
-// ここを“ただの data を返す axios”に統一
-export const http = axios.create({
-    baseURL: BASE,
-    withCredentials: true, // ← Cookie送受信
-    headers: {
-        "X-Requested-With": "XMLHttpRequest",
-        Accept: "application/json",
-    },
-    xsrfCookieName: "XSRF-TOKEN",   // ← 明示
+// ========== Token ==========
+export function setToken(token: string | null) {
+    if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    else localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+function getToken() {
+    return localStorage.getItem(ADMIN_TOKEN_KEY);
+}
+
+// ========== API (Bearer, /api/* 用) ==========
+export const api = axios.create({
+    baseURL: import.meta.env.VITE_API_BASE ?? "/api",
+    withCredentials: false, // Bearer なので cookie 不要
+});
+
+// Bearer を常に付与
+api.interceptors.request.use((config) => {
+    const token = getToken();
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+});
+
+// 401 の時は任意でトークン破棄
+api.interceptors.response.use(
+    (res) => res,
+    (err) => {
+        if (err?.response?.status === 401) {
+            localStorage.removeItem(ADMIN_TOKEN_KEY);
+        }
+        return Promise.reject(err);
+    }
+);
+
+// ========== Web (Sanctum, /login 等の非 /api 用) ==========
+const web = axios.create({
+    baseURL: "/",               // ルート直下 (/login 等)
+    withCredentials: true,      // CSRF Cookie をやり取りする
+    xsrfCookieName: "XSRF-TOKEN",
     xsrfHeaderName: "X-XSRF-TOKEN",
 });
-http.interceptors.response.use((r) => r.data);
 
-// ===== Web ルート（/login, /logout など） =====
+// /login, /logout などの Web ルート
+export type WebPath = `/${string}`;
 export async function postWeb<T = unknown>(path: WebPath, body?: unknown): Promise<T> {
     if (path.startsWith("/api/")) throw new Error("postWeb に /api/* は渡せません");
-    // Sanctum: 先にCSRF Cookie
-    await http.get("/sanctum/csrf-cookie");
-    return http.post<T>(path, body ?? {});
+    // Sanctum: 先に CSRF Cookie を取得
+    await web.get("/sanctum/csrf-cookie");
+    const { data } = await web.post<T>(path, body ?? {});
+    return data;
 }
 
-// ===== API ルート（/api/*） =====
-export const api = axios.create({
-    baseURL: API_BASE,         // ← "/api" を含む
-    withCredentials: false,    // ← Cookie使わない
-    headers: { Accept: "application/json" },
-});
-api.interceptors.response.use((r) => r.data as any);
-
-// ---- トークン管理（localStorageに保存）----
-const TOKEN_KEY = "ADMIN_TOKEN";
-export function setToken(t: string | null) {
-    if (t) localStorage.setItem(TOKEN_KEY, t);
-    else localStorage.removeItem(TOKEN_KEY);
-    api.defaults.headers.common.Authorization = t ? `Bearer ${t}` : undefined;
-}
-// 起動時に復元
-setToken(localStorage.getItem(TOKEN_KEY));
-// ---- API 呼び出しヘルパ ----
+// ========== 認証 API (/api/*, Bearer) ==========
 export const AuthApi = {
-    login(email: string, password: string) {
-        return api.post<{ token: string; user: { id:number; name:string; email:string } }>(
-            "/auth/token",
-            { email, password }
-        );
+    async login(email: string, password: string) {
+        const { data } = await api.post("/login", { email, password });
+        setToken(data?.token ?? null);
+        return data; // { token, user }
     },
-    me() {
-        return api.get<{ user: { id:number; name:string; email:string } | null }>("/whoami");
+    async me() {
+        const { data } = await api.get("/me");
+        return data; // { id, name, email, role, ... }
+    },
+    async logout() {
+        try { await api.post("/logout"); } catch { console.error("logout failed"); }
+        setToken(null);
     },
 };
+
+// ========== ユーティリティ ==========
+export async function jupload(url: string, form: FormData) {
+    const { data } = await api.post(url, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data; // { id, url, path } など
+}
+
+// （必要なら）PUT/DELETE の JSON ヘルパ
+export const jput  = <T=any>(url: string, body?: any) => api.put<T>(url, body).then(r=>r.data);
+export const jdel  = <T=any>(url: string)            => api.delete<T>(url).then(r=>r.data);
+
+/* 参考：もし「トークンも Cookie にしたい」ならこんな感じ（今回は不要）
+function getCookieToken() {
+  const m = document.cookie.match(/(?:^|;\s*)admin_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+*/

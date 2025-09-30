@@ -21,7 +21,7 @@ import AdminLayout from "./pages/admin/_layout";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminCharts from "./pages/admin/Charts";
 import AdminTables from "./pages/admin/Tables";
-import AdminSiteBuilder from "./pages/admin/site/Builder";
+import AdminSiteBuilder from "./pages/admin/site/AdminSiteBuilder.tsx";
 import Reserve from "./pages/PublicReserve";     // 予約フォーム（共通）
 import ReservePage from "./pages/ReservePage";   // /:tenant/reserve 用
 import PublicSite from "./public/PublicSite";    // 先生サイト

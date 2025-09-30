@@ -14,7 +14,7 @@ export function BlockRenderer({ block }: { block: Block }){
         case 'hero': return <Hero d={block.data}/>;
         case 'features': return <Features d={block.data}/>;
         case 'cta': return <CTA d={block.data}/>;
-        case 'mediaCard': return <MediaCard d={block.data}/>;
+        case 'mediaCard': return <MediaCard data={block.data}/>;
 
         default: return <div style={{opacity:.7}}>Unknown block: {block.type}</div>;
     }

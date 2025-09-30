@@ -1,8 +1,7 @@
 // frontend/src/components/site-builder/HeroEditor.tsx
 import { useState } from "react";
 import { Button } from "react-bootstrap";
-import { uploadImage } from "@/lib/upload";
-import {api} from "@/lib/api";
+import {jupload} from "../../lib/api";
 
 type HeroData = {
     kicker?: string;
@@ -15,11 +14,6 @@ type HeroData = {
     avatarUrl?: string;
 };
 
-type Props = {
-    data: any;
-    onSave: (diff: any)=>void;
-};
-const API = api;
 export default function HeroEditor({
                                        data,
                                        onSave,
@@ -45,9 +39,8 @@ export default function HeroEditor({
         try {
             const next = { ...v };
             console.log("[HeroEditor] save click payload:", next);
-            await onSave(v);                      // ★ 完全スナップショットで送る
-            // 成功が分かるように小さな通知（任意）
-            // toast.success('保存しました');
+            await onSave(v);
+
         } finally {
             setBusy(false);
         }
@@ -57,13 +50,12 @@ export default function HeroEditor({
         setBusy(true); setErr(null);
         try {
             const fd = new FormData(); fd.append("file", file);
-            const json = await API.jupload<{ id:number; url:string }>("/media", fd);
+            const json = await jupload("admin/media", fd);
 
-            // ★ setStateのクロージャ内で “次の完全オブジェクト” を作り、その場で onSave(next)
             setV(prev => {
 
-                const next = { ...prev, [field]: json.url };   // 完全スナップショット
-                onSave(next);                                  // 置換APIに合わせて丸ごと送る
+                const next = { ...prev, [field]: json.url };
+                onSave(next);
                 return next;
             });
         } catch (e:any) {

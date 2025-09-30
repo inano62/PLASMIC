@@ -1,7 +1,7 @@
 // src/pages/admin/Site.tsx
 import { useEffect, useState } from "react";
 import API from "../../lib/api";
-import Builder from "./site/Builder.tsx"; // default { get, post, getJson, postJson }
+import Builder from "./site/AdminSiteBuilder.tsx"; // default { get, post, getJson, postJson }
 
 type Status = { allowed: boolean; account_type: string; price_id?: string };
 

@@ -1,52 +1,48 @@
 // frontend/src/pages/admin/site/AdminSiteBuilder.tsx
-import { useEffect, useState } from "react";
+import {useCallback, useEffect, useState} from "react";
 import { Button } from "react-bootstrap";
-import {api} from "@/lib/api";
-
-import HeroEditor     from "@/components/site-builder/HeroEditor";
-import FeaturesEditor from "@/components/site-builder/FeaturesEditor";
-import CtaEditor      from "@/components/site-builder/CtaEditor";
+import HeroEditor     from "../../../components/site-builder/HeroEditor";
+import FeaturesEditor from "../../../components/site-builder/FeaturesEditor";
+import CtaEditor      from "../../../components/site-builder/CtaEditor";
+import {useAuth} from "../../../contexts/auth.tsx";
+import {useNavigate} from "react-router-dom";
+import {api} from "../../../lib/api.ts";
 
 type Site  = { id:number; title:string; slug:string; meta?:any };
 type Block = { id:number; type:string; sort:number; data:any | null };
 type Page  = { id:number; title:string; path:string; sort:number; blocks: Block[] };
 
-const SITE_ID = 1;
 const API = api;
-export default function Builder() {
+export default function AdminSiteBuilder() {
     const [site, setSite] = useState<Site|null>(null);
     const [pages, setPages] = useState<Page[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [currentPage, setCurrentPage] = useState<Page|null>(null);
+    const [err, setErr] = useState<string | null>(null);
+    const nav = useNavigate();
+    const { user, loading: authLoading } = useAuth();
     const [busy, setBusy] = useState(false);
-    const [save, onSave] = useState<any>(null);
-    const [err, setErr] = useState<any>(null);
-    const [v, setV] = useState<any>(null);
+    const SITE_ID = user?.id
+    const [currentPage, setCurrentPage] = useState<Page|null>(null);
 
-    // ---- 取得 ----
-    async function load() {
-        setLoading(true);
+    const load = useCallback(async () => {
+        setBusy(true);
+        setErr(null);
         try {
-            const s: any = await API.get(`/admin/sites/${SITE_ID}`);
-            const site  = s?.site ?? (s && s.id ? s : null);
-            const pages = s?.pages ?? s?.site?.pages ?? [];
-            if (!site) throw new Error("サイトデータが空です / 取得に失敗しました");
-
-            setSite(site);
-            setPages(Array.isArray(pages) ? pages : []);
-            if (!currentPage && pages?.length) setCurrentPage(pages[0]); // 初期選択
-        } catch (e: any) {
-            console.error("[Builder] load error:", e);
-            alert(`読み込みに失敗: ${e?.message ?? String(e)}`);
+            const { data: s } = await api.get('/admin/sites/me');
+            setSite(s?.site ?? null);
+            setPages(s?.pages ?? []);
+            if (!currentPage && s?.pages?.length) setCurrentPage(s.pages[0]);
+        } catch (e:any) {
+            setErr(e?.response?.data?.message ?? e?.message ?? '読み込みに失敗しました');
         } finally {
-            setLoading(false);
+            setBusy(false);
         }
-    }
-    useEffect(() => { load(); }, []);
+    }, [currentPage]);
 
-    // ページ選択（必要なら見出しやリストで使う）
-    const selectPage = (page: Page) => setCurrentPage(page);
-
+    useEffect(() => {
+        if (authLoading) return;
+        if (!user) { nav("/admin/login", { replace: true }); return; }
+        load();
+    }, [authLoading, user, load, nav]);
     // ---- 操作系 ----
     async function addPage(path = "/", title = "Home") {
         await API.post(`/admin/sites/${SITE_ID}/pages`, { path, title });
@@ -60,18 +56,13 @@ export default function Builder() {
 
     async function saveSite() {
         if (!site) return;
-        await API.jput(`/admin/sites/${SITE_ID}`, { title: site.title, slug: site.slug, meta: site.meta });
+        await API.put(`/admin/sites/${SITE_ID}`, { title: site.title, slug: site.slug, meta: site.meta });
         alert("保存しました");
     }
 
-    async function publishAndOpen() {
-        const res = await API.post<{slug?:string}>(`/admin/sites/${SITE_ID}/publish`, {});
-        const slug = res.slug || site?.slug || "";
-        window.open(`/s/${slug}/`, "_blank");
-    }
 
     async function updateBlock(b: Block, nextData:any) {
-        await API.jput(`/admin/blocks/${b.id}`, { data: nextData, sort: b.sort });
+        await API.put(`/admin/blocks/${b.id}`, { data: nextData, sort: b.sort });
         // 楽観更新（必要なら）＋リロード
         setPages(old =>
             old.map(p => ({ ...p, blocks: p.blocks.map(x => x.id===b.id ? { ...x, data: nextData } : x) }))
@@ -91,7 +82,7 @@ export default function Builder() {
 
     async function removeBlock(id:number) {
         if (!confirm("削除しますか？")) return;
-        await API.jdel(`/admin/blocks/${id}`);
+        await API.delete(`/admin/blocks/${id}`);
         await load();
     }
 
@@ -107,9 +98,11 @@ export default function Builder() {
         if (!currentPage) return alert("ページを選択してください");
         await addBlock(currentPage.id, type);
     };
-
-    if (loading) return <div className="p-4">読み込み中…</div>;
-    if (!site)    return <div className="p-4">サイトが見つかりません</div>;
+    if (authLoading) return <div className="p-4">認証確認中…</div>;
+    if (!user) return null;
+    // if (authLoading || busy) return <div className="p-4">読み込み中…</div>;
+    if (err) return <div className="p-4 text-danger">{err}</div>;
+    if (!site) return <div className="p-4">サイトが見つかりません</div>;
 
     return (
         <div className="container py-4">

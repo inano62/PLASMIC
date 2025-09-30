@@ -31,6 +31,7 @@ class MediaController extends Controller
         return response()->json([
             'id'=>$m->id,
             'url' => Storage::disk('public')->url($path),
+            'path'=> $path,
             ]);
     }
     // 例

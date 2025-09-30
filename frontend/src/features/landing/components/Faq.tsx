@@ -1,10 +1,6 @@
-export function Faq(items:string) {
-    const itemss = items
+export function Faq() {
     return(
         <div>
-            <h1>
-                fdfdsafdsafdsafdsafdsafdsafdsa
-            </h1>
         </div>
     )
 }

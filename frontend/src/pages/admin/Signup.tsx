@@ -1,6 +1,6 @@
 // src/pages/admin/Signup.tsx
 import { useState } from "react";
-import api, { postWeb } from "../../lib/api";
+import  { api , postWeb } from "../../lib/api";
 
 export default function Signup() {
     const [name, setName]       = useState("");

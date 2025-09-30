@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState} from "react";
 import { Outlet, Link, NavLink } from "react-router-dom";
+import {useAuth} from "../../contexts/auth.tsx";
 
 /**
  * ポイント
@@ -9,7 +10,7 @@ import { Outlet, Link, NavLink } from "react-router-dom";
  */
 export default function AdminLayout() {
     const [open, setOpen] = useState(true);
-
+    const { user } = useAuth();
     return (
         <div className={`sb-nav-fixed sb ${open ? "" : "sb-sidenav-toggled"}`}>
             {/* TopNav（固定ヘッダー） */}
@@ -99,7 +100,8 @@ export default function AdminLayout() {
                         </div>
                         <div className="sb-sidenav-footer">
                             <div className="small">Logged in as:</div>
-                            Admin
+                            <p>ログイン中: {user?.name} ({user?.email})</p>
+                            <p> {user?.tenants?.[0]?.name} ({user?.tenants?.[0]?.role})</p>
                         </div>
                     </nav>
                 </div>
