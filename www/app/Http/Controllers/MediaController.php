@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Block;
 use App\Models\Media;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Response;
+use RecursiveArrayIterator;
+use RecursiveIteratorIterator;
 
 class MediaController extends Controller
 {
@@ -17,24 +20,40 @@ class MediaController extends Controller
         return ['url'=>asset('storage/'.$path), 'path'=>$path];
     }
     public function upload(Request $r) {
-        $r->validate(['file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,svg,pdf,mp4|max:20480',]);
-        $f = $r->file('file');
-        $path = $f->store('uploads', 'public'); // storage/app/public/uploads
-        $m = Media::create([
-            'disk' => 'public',
-            'path' => $path,
-            'original_name' => $f->getClientOriginalName(),
-            'mime' => $f->getClientMimeType(),
-            'size' => $f->getSize(),
-        ]);
-
-        return response()->json([
-            'id'=>$m->id,
-            'url' => Storage::disk('public')->url($path),
-            'path'=> $path,
+        try {
+            $r->validate([
+                'file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,svg,pdf,mp4|max:20480',
             ]);
+
+            $f = $r->file('file');
+            Log::info('upload start', ['size'=>$f->getSize(), 'memory'=>ini_get('memory_limit')]);// ← null になってないか要点検
+            $bytes = base64_encode(file_get_contents($f->getRealPath()));
+
+            $m = Media::create([
+                'disk'          => 'db_b64',
+                'original_name' => $f->getClientOriginalName(),
+                'mime'          => $f->getClientMimeType(),
+                'size'          => $f->getSize(),
+                'bytes'         => $bytes,
+            ]);
+
+            return response()->json([
+                'id'   => $m->id,
+                'url'  => $m->url,  // /api/admin/media/{id}
+                'name' => $m->original_name,
+                'mime' => $m->mime,
+                'size' => $m->size,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('media upload failed', ['e'=>$e]);
+            // 一時的に詳細返す（直ったら消す）
+            return response()->json([
+                'message' => $e->getMessage(),
+                'type'    => get_class($e),
+            ], 500);
+        }
     }
-    // 例
+
     public function update(Request $r, Block $block)
     {
         // 1) dataを配列に
@@ -71,8 +90,12 @@ class MediaController extends Controller
     }
     public function show($id) {
         $m = Media::findOrFail($id);
-
-        return response()->file(storage_path("app/public/{$m->path}"));
+        $bin = base64_decode($m->bytes);
+        return \Illuminate\Support\Facades\Response::make($bin, 200, [
+            'Content-Type'   => $m->mime ?: 'application/octet-stream',
+            'Content-Length' => (string)($m->size ?? strlen($bin)),
+            'Cache-Control'  => 'public, max-age=31536000, immutable',
+        ]);
     }
 
 }

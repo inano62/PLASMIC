@@ -310,11 +310,12 @@ return new class extends Migration
 
         Schema::create('media', function (Blueprint $t) {
             $t->id();
-            $t->string('disk')->default('public');
-            $t->string('path');
+            $t->string('disk');
+            $t->string('path', 255)->nullable()->change();
             $t->string('original_name')->nullable();
             $t->string('mime')->nullable();
             $t->integer('size')->nullable();
+            $t->longText('bytes')->nullable();
             $t->timestamps();
         });
         Schema::create('call_logs', function (Blueprint $t) {

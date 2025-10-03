@@ -6,12 +6,13 @@ use Storage;
 
 // app/Models/Media.php
 class Media extends Model {
-    protected $fillable=['disk','path','mime','size','original_name'];
+    protected $fillable = ['disk','mime','size','original_name','bytes'];
     protected $appends=['url'];
-//    public function getUrlAttribute(){ return Storage::disk($this->disk)->url($this->path); }
-    public function getUrlAttribute():string
+        public function getUrlAttribute(): string
     {
-        return Storage::disk($this->disk ?? 'public')->url($this->path);
+        return url("/api/admin/media/{$this->id}");
     }
+
+
 
 }

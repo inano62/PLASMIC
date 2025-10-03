@@ -73,9 +73,7 @@ export const AuthApi = {
 
 // ========== ユーティリティ ==========
 export async function jupload(url: string, form: FormData) {
-    const { data } = await api.post(url, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-    });
+    const { data } = await api.post(url, form);
     return data; // { id, url, path } など
 }
 

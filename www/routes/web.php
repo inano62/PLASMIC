@@ -13,25 +13,7 @@ use App\Models\{User,Site,Tenant,Page};
 use Laravel\Sanctum\Http\Controllers\CsrfCookieController;
 require __DIR__ . '/auth.php';
 // routes/web.php の上のほうに追加（他の /login ルートより前に）
-Route::redirect('/login', '/admin/login')->name('login.redirect');
-Route::redirect('/register', '/admin/login');
-Route::redirect('/password/*', '/admin/login'); // 念のため
 
-Route::get('/sanctum/csrf-cookie', [CsrfCookieController::class, 'show'])
-    ->middleware('web');
-Route::post('/login', function (Request $r) {
-    $cred = $r->validate([
-        'email'    => 'required|email',
-        'password' => 'required',
-    ]);
-
-    if (!Auth::attempt($cred)) {
-        return response()->json(['message' => 'メールまたはパスワードが違います'], 422);
-    }
-
-    $r->session()->regenerate(); // セッション固定攻撃対策
-    return response()->json(['ok'=>true, 'user'=>$r->user()]);
-});
 Route::post('/signup-and-checkout', function (Request $r) {
     $v = $r->validate([
         'name'     => ['required','string','max:255'],
@@ -130,12 +112,12 @@ Route::post('/register', function (Request $r) {
     return response()->json(['ok'=>true, 'user'=>$user], 201);
 });
 
-Route::post('/logout', function (Request $r) {
-    Auth::guard('web')->logout();
-    $r->session()->invalidate();
-    $r->session()->regenerateToken();
-    return response()->noContent();
-});
+//Route::post('/logout', function (Request $r) {
+//    Auth::guard('web')->logout();
+//    $r->session()->invalidate();
+//    $r->session()->regenerateToken();
+//    return response()->noContent();
+//});
 Route::get('/thanks', [BillingController::class, 'thanks'])->name('billing.thanks');
 // デバッグ
 //Route::get('/me', fn(Request $r) => response()->json($r->user()));

@@ -31,4 +31,31 @@ class AuthController extends Controller
             'primary_tenant_id' => $primaryTenantId,
         ]);
     }
+    public function apiLogin(Request $r)
+    {
+        $r->validate(['email'=>'required|email','password'=>'required']);
+        $user = User::where('email', $r->email)->first();
+        if (!$user || !Hash::check($r->password, $user->password)) {
+            return response()->json(['message'=>'Unauthorized'], 401);
+        }
+        // Sanctum Personal Access Token を発行
+        $token = $user->createToken('admin')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user'  => [
+                'id'=>$user->id, 'name'=>$user->name, 'email'=>$user->email, 'role'=>$user->role,
+                // 必要なら tenants もここで同梱
+                // 'tenants' => $user->tenants()->get(['id','slug'])->map(fn($t)=>['id'=>$t->id,'slug'=>$t->slug]),
+            ],
+        ]);
+    }
+
+    public function apiLogout(Request $r)
+    {
+        // 現在のトークンだけ失効
+        $r->user()->currentAccessToken()?->delete();
+        return response()->json(['ok'=>true]);
+    }
+
 }

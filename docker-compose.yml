@@ -51,6 +51,7 @@ services:
       - "--default-time-zone=Asia/Tokyo"
       - "--character-set-server=utf8mb4"
       - "--collation-server=utf8mb4_0900_ai_ci"
+      - "--max_allowed_packet=256M"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s

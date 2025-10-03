@@ -119,7 +119,12 @@ Route::post('/login', function (Request $r) {
 
 // 2) 現在のユーザー（Sanctum必須）
 // routes/api.php
-Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
+//Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
+Route::post('/login', [AuthController::class, 'apiLogin']);
+Route::post('/logout', [AuthController::class, 'apiLogout'])
+    ->middleware('auth:sanctum');
+Route::get('/me', [AuthController::class, 'me'])
+    ->middleware('auth:sanctum');
 // ───── Builder 管理API（Sanctum） ─────
 Route::prefix('admin')
     ->middleware('auth:sanctum')
@@ -134,7 +139,7 @@ Route::prefix('admin')
         Route::post('/sites/{id}/publish', [SiteBuilderController::class, 'publish']);
         Route::post('/appointments', [AppointmentController::class, 'storeForTenant']);
         Route::post('/media', [MediaController::class, 'upload']);
-        Route::get('/media/{id}', [MediaController::class, 'show']);
+        Route::get('/media/{id}', [MediaController::class, 'show'])->name('admin.media.show');
     });
 
 Route::get('/ping', fn() => ['ok' => true, 'time' => now()->toIso8601String()]);
