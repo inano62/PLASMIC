@@ -157,7 +157,7 @@ export default function AdminSiteBuilder() {
                                 </div>
                             </div>
 
-                            {b.type==="hero"     && <HeroEditor     data={b.data} onSave={(next)=>updateBlock(b, next)} />}
+                            {b.type==="hero"     && <HeroEditor     siteId={p.id} onSave={(next)=>updateBlock(b, next)} />}
                             {b.type==="features" && <FeaturesEditor data={b.data} onSave={(d)=>updateBlock(b, d)} />}
                             {b.type==="cta"      && <CtaEditor      data={b.data} onSave={(d)=>updateBlock(b, d)} />}
                         </div>

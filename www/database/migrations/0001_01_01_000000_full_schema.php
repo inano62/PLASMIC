@@ -312,6 +312,7 @@ return new class extends Migration
             $t->id();
             $t->string('disk');
             $t->string('path', 255)->nullable()->change();
+            $t->foreignId('site_id')->nullable()->constrained()->cascadeOnDelete();
             $t->string('original_name')->nullable();
             $t->string('mime')->nullable();
             $t->integer('size')->nullable();

@@ -15,22 +15,15 @@ type HeroData = {
 };
 
 export default function HeroEditor({
-                                       data,
+                                       siteId,
                                        onSave,
                                    }: {
-    data: any;
+    siteId: number;
     onSave: (diff: any) => void;
 }) {
     const [v, setV] = useState<HeroData>({
-        kicker: data?.kicker ?? "",
-        title: data?.title ?? "",
-        subtitle: data?.subtitle ?? "",
-        btnText: data?.btnText ?? "",
-        btnHref: data?.btnHref ?? "",
-        imgId: data?.imgId ?? null,
-        bgUrl: data?.bgUrl ?? "",
-        avatarUrl: data?.avatarUrl ?? "",
     });
+    console.log("[HeroEditor] data:", siteId);
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState<string | null>(null);
     // ← File を受け取る関数
@@ -45,11 +38,13 @@ export default function HeroEditor({
             setBusy(false);
         }
     }
-    async function handleUpload(file?: File, field: "bgUrl" | "avatarUrl" = "bgUrl") {
+    async function handleUpload(file?: File, field: "bgUrl" | "avatarUrl" = "bgUrl", siteId: number,   ) {
         if (!file) return;
         setBusy(true); setErr(null);
         try {
-            const fd = new FormData(); fd.append("file", file);
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("site_id", siteId.toString());
             const json = await jupload("admin/media", fd);
 
             setV(prev => {
@@ -79,7 +74,7 @@ export default function HeroEditor({
             <div className="col-12">
                 <label className="form-label">背景画像</label>
                 <input type="file" className="form-control" accept="image/*"
-                       onChange={e=>handleUpload(e.target.files?.[0], "bgUrl")}
+                       onChange={e=>handleUpload(e.target.files?.[0], "bgUrl",siteId)}
                        disabled={busy}/>
                 {err && <div className="text-danger small mt-2">{err}</div>}
                 {v.bgUrl && <img src={v.bgUrl} className="img-fluid mt-2 rounded-3" alt="" />}
@@ -89,7 +84,7 @@ export default function HeroEditor({
             <div className="col-12">
                 <label className="form-label">アバター画像</label>
                 <input type="file" className="form-control" accept="image/*"
-                       onChange={e=>handleUpload(e.target.files?.[0], "avatarUrl")}
+                       onChange={e=>handleUpload(e.target.files?.[0], "avatarUrl",siteId)}
                        disabled={busy}/>
                 {v.avatarUrl && (
                     <img src={v.avatarUrl} className="img-thumbnail mt-2 rounded-circle"

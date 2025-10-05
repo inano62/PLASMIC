@@ -26,7 +26,12 @@ class MediaController extends Controller
             ]);
 
             $f = $r->file('file');
-            Log::info('upload start', ['size'=>$f->getSize(), 'memory'=>ini_get('memory_limit')]);// ← null になってないか要点検
+            Log::info(
+                'upload start',
+                [
+                    'size'=>$f->getSize(),
+                    'memory'=>ini_get('memory_limit')
+                ]);// ← null になってないか要点検
             $bytes = base64_encode(file_get_contents($f->getRealPath()));
 
             $m = Media::create([
@@ -34,15 +39,17 @@ class MediaController extends Controller
                 'original_name' => $f->getClientOriginalName(),
                 'mime'          => $f->getClientMimeType(),
                 'size'          => $f->getSize(),
+                'site_id'       => $r->input('site_id'),
                 'bytes'         => $bytes,
             ]);
 
             return response()->json([
-                'id'   => $m->id,
-                'url'  => $m->url,  // /api/admin/media/{id}
-                'name' => $m->original_name,
-                'mime' => $m->mime,
-                'size' => $m->size,
+                'id'        => $m->id,
+                'site_id'   => $m->site_id,
+                'name'      => $m->original_name,
+                'mime'      => $m->mime,
+                'size'      => $m->size,
+                'url' => url("/api/media/{$m->id}"),
             ]);
         } catch (\Throwable $e) {
             Log::error('media upload failed', ['e'=>$e]);

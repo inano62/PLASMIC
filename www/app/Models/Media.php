@@ -6,7 +6,7 @@ use Storage;
 
 // app/Models/Media.php
 class Media extends Model {
-    protected $fillable = ['disk','mime','size','original_name','bytes'];
+    protected $fillable = ['disk','mime','size','original_name','bytes','site_id'];
     protected $appends=['url'];
         public function getUrlAttribute(): string
     {
