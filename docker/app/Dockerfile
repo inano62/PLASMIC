@@ -1,6 +1,5 @@
 FROM php:8.3-fpm-alpine
 
-# OS & build deps（★ linux-headers を追加）
 RUN apk add --no-cache \
     bash git vim wget curl tzdata \
     icu-dev oniguruma-dev \
@@ -9,27 +8,18 @@ RUN apk add --no-cache \
     linux-headers \
     $PHPIZE_DEPS
 
+# Laravel 必須拡張をインストール
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
- && docker-php-ext-install -j"$(nproc)" gd pdo pdo_mysql mysqli intl zip bcmath opcache
-cd .\frontend\
-$env:LK_API_KEY="devkey"
-$env:LK_API_SECRET="6d1680de114c4ac0908936c8de20c4905896dbb2e2634087a87bb5ed6df986cb4"
+ && docker-php-ext-install -j"$(nproc)" \
+    gd pdo pdo_mysql mysqli intl zip bcmath opcache dom
 
-# 参加者ごとに異なる identity を使う（alice / bob 例）
-$tokAlice = (node .\scripts\mint-token.mjs demo alice).Trim()
-$tokBob   = (node .\scripts\mint-token.mjs demo bob).Trim()
+# 👇 composer を公式イメージからコピー
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 
-# サーバーで有効性チェック（両方とも "success" ならOK）
-curl.exe -G --http1.1 --data-urlencode ("access_token="+$tokAlice) http://127.0.0.1:7880/rtc/validate
-curl.exe -G --http1.1 --data-urlencode ("access_token="+$tokBob)   http://127.0.0.1:7880/rtc/validate
+# 👇 apk 経由で入った PHP83 を削除（もし残っていれば）
+RUN apk del composer php83 php83-common || true
 
-# 2つのウィンドウで開く（クエリはそれぞれのトークン）
-Start-Process ("http://localhost:5176/?token=" + [uri]::EscapeDataString($tokAlice))
-Start-Process ("http://localhost:5176/?token=" + [uri]::EscapeDataString($tokBob))
+# 👇 PHPの実行ファイルを composer が確実に使えるように
+RUN ln -sf /usr/local/bin/php /usr/bin/php
 
-# xdebug（必要なら）
-RUN pecl install xdebug \
- && docker-php-ext-enable xdebug
-
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www
