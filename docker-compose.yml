@@ -14,9 +14,6 @@ services:
     networks: [appnet]
 
   app:
-#    build:
-#      context: .
-#      dockerfile: docker/app/Dockerfile
     build: { context: "./docker/app/" }
     container_name: app
     working_dir: /var/www
@@ -29,11 +26,7 @@ services:
       mysql:
         condition: service_healthy
     expose: ["9000"]
-    # 起動時に vendor を用意（開発でホストマウントに消される対策）
-#    command: sh -lc "composer install --no-interaction --prefer-dist && php-fpm -F"
-    #    command: sh -lc "composer install --no-interaction --prefer-dist && php-fpm -F"
-    command: ["sleep","infinity"]
-#    command: sh -lc "composer install --no-interaction --prefer-dist && php-fpm -F"
+    command: sh -lc "composer install --no-interaction --prefer-dist && php-fpm -F"
     restart: unless-stopped
     networks: [appnet]
 
