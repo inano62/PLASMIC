@@ -1,5 +1,5 @@
 # PLASMIC – Multi-Sector Online Booking & Payment Platform (α)
-
+#SESはお断りします。
 ## 🌐 概要
 PLASMICは、士業・訪問医療・美容クリニックなど、**相談業務をオンライン化**したい事業者向けの  
 「**LP + 予約 + Stripe決済 + Meet（ビデオ通話）**」を統合する軽量なWebプラットフォームです。  
