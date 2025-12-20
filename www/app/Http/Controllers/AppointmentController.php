@@ -260,7 +260,7 @@ class AppointmentController extends Controller
             'tenant_id'      => ['required','integer'],
             'lawyer_user_id' => ['required','integer'],
             'client_user_id' => ['required','integer'],
-            'starts_at'      => ['required','date'],
+//            'starts_at'      => ['required','date'],
             'duration_min'   => ['nullable','integer'],
             'price_jpy'      => ['nullable','integer'],
         ]);
@@ -269,8 +269,8 @@ class AppointmentController extends Controller
             'tenant_id'      => (int)$data['tenant_id'],
             'lawyer_user_id' => (int)$data['lawyer_user_id'],
             'client_user_id' => (int)$data['client_user_id'],
-            'starts_at'      => new Carbon($data['starts_at']),
-            'ends_at'        => (new Carbon($data['starts_at']))->addMinutes((int)($data['duration_min'] ?? 30)),
+            'starts_at'      => new Carbon($data['start_at']),
+            'ends_at'        => (new Carbon($data['start_at']))->addMinutes((int)($data['duration_min'] ?? 30)),
             'status'         => 'pending',                 // 支払導入時はここから booked へ遷移
             'price_jpy'      => (int)($data['price_jpy'] ?? 0),
             'room_name'      => 'room_'.Str::lower(Str::random(10)),
@@ -288,8 +288,8 @@ class AppointmentController extends Controller
             'id'             => $a->id,
             'room'           => $a->room_name,
             'status'         => $a->status,
-            'clientJoinPath' => "/wait?ticket={$a->id}",
-            'hostJoinPath'   => "/host?aid={$a->id}",
+            'clientJoinPath'=> "/wait?ticket={$jwt}",
+            'hostJoinPath'  => "/host?aid={$a->id}&ticket={$jwt}",
         ], 201);
     }
 
@@ -368,7 +368,7 @@ class AppointmentController extends Controller
         $tenantId = $tenant; // ← これでOK（ルート {tenant} は数値限定にしておくと尚良し）
 
         $lawyerId = (int) $req->input('lawyer_id', 1);
-        $startIso = $req->input('start_at');
+        $startIso = $req->input('start_at')??$req->input('starts_at');
         abort_unless($startIso, 422, 'start_at is required');
 
         $starts = \Carbon\Carbon::parse($startIso)->setTimezone(config('app.timezone'));
@@ -390,8 +390,8 @@ class AppointmentController extends Controller
             'purpose_title'  => $req->input('purpose_title', 'オンライン相談'),
             'purpose_detail' => $req->input('purpose_detail'),
         ]);
-        $guestUrl = url($a->clientJoinPath ?? "/wait?room={$a->room_name}");
-        $hostUrl  = url($a->hostJoinPath   ?? "/host?aid={$a->id}&room={$a->room_name}");
+        $guestUrl = url("/wait?room={$a->room_name}");
+        $hostUrl  = url("/host?aid={$a->id}&room={$a->room_name}");
 
         if ($req->filled('client_email')) {
             Mail::raw(

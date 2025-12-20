@@ -3,6 +3,7 @@
 return [
     'paths' => [
         'api/*',
+        'api/public/*',
         'sanctum/csrf-cookie',
         'login', 'logout', 'register',
     ],
@@ -17,5 +18,5 @@ return [
 
     'exposed_headers' => [],
     'max_age' => 0,
-    'supports_credentials' => true,
+    'supports_credentials' => false,
 ];

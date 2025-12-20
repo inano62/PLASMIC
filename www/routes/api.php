@@ -137,7 +137,7 @@ Route::prefix('admin')
         Route::put('/blocks/{id}', [SiteBuilderController::class, 'updateBlock']);
         Route::delete('/blocks/{id}', [SiteBuilderController::class, 'deleteBlock']);
         Route::post('/sites/{id}/publish', [SiteBuilderController::class, 'publish']);
-        Route::post('/appointments', [AppointmentController::class, 'storeForTenant']);
+//        Route::post('/appointments', [AppointmentController::class, 'storeForTenant']);
         Route::post('/media', [MediaController::class, 'upload']);
         Route::get('/media/{id}', [MediaController::class, 'show'])->name('admin.media.show');
     });
@@ -148,6 +148,8 @@ Route::get('/billing/session/{sid}', [BillingController::class, 'session']);
 Route::post('/stripe/webhook', [BillingController::class, 'webhook']);
 // ───── 公開サイト用 JSON ─────
 Route::prefix('public')->group(function () {
+    Route::post('/tenants/{tenant}/appointments', [AppointmentController::class, 'storeForTenant']);
+
     Route::get('/settings', [PublicApiController::class, 'settings']);
     Route::get('/tenants/list', [PublicSiteApiController::class, 'tenantsList']);
     Route::get('/sites/{slug}/page', [PublicSiteApiController::class, 'page']);
