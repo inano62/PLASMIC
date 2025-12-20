@@ -7,6 +7,8 @@ PLASMICは、士業・訪問医療・美容クリニックなど、**相談業�
 初期フェーズでは **WordPress** によるローンチの速さを重視し、  
 将来的には **React / Laravel / Rust** でコア機能を再構成するSaaS基盤を構想しています。
 
+docker compose exec app php artisan migrate:fresh
+docker compose exec app php artisan db:seed
 ---
 
 ## 🛠 技術スタック
