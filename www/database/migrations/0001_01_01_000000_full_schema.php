@@ -20,16 +20,16 @@ return new class extends Migration
         });
 
         // Laravel cache:table 相当
-        Schema::create('cache', function (Blueprint $t) {
-            $t->string('key')->primary();
-            $t->mediumText('value');
-            $t->integer('expiration');
-        });
-        Schema::create('cache_locks', function (Blueprint $t) {
-            $t->string('key')->primary();
-            $t->string('owner');
-            $t->integer('expiration');
-        });
+//        Schema::create('cache', function (Blueprint $t) {
+//            $t->string('key')->primary();
+//            $t->mediumText('value');
+//            $t->integer('expiration');
+//        });
+//        Schema::create('cache_locks', function (Blueprint $t) {
+//            $t->string('key')->primary();
+//            $t->string('owner');
+//            $t->integer('expiration');
+//        });
 
         // queue テーブル
         Schema::create('jobs', function (Blueprint $t) {
@@ -374,8 +374,8 @@ return new class extends Migration
         Schema::dropIfExists('job_batches');
         Schema::dropIfExists('jobs');
 
-        Schema::dropIfExists('cache_locks');
-        Schema::dropIfExists('cache');
+//        Schema::dropIfExists('cache_locks');
+//        Schema::dropIfExists('cache');
         Schema::dropIfExists('settings');
 
         Schema::dropIfExists('call_logs');
