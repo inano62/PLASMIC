@@ -11,7 +11,10 @@ return [
     'allowed_headers' => ['*'],
 
     // フロントのオリジンだけ明示
-    'allowed_origins' => ['http://localhost:5176'],
+    'allowed_origins' => [
+        'http://localhost:5176',
+        'http://127.0.0.1:5176',
+    ],
 
     // ここは空配列に！(いま書いてある正規表現は消す)
     'allowed_origins_patterns' => [],

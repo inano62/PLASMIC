@@ -49,32 +49,17 @@ class PublicController extends Controller
     }
     public function resolve(Request $req)
     {
-        $id   = $req->query('id');
         $slug = $req->query('slug');
-        $key  = $req->query('key');
 
-        if (!$id && !$slug && !$key) {
-            return response()->json(['message' => 'id|slug|key is required'], 400);
+        if (!$slug) {
+            return response()->json(['message' => 'slug is required'], 400);
         }
 
         $tenant = null;
 
-        if ($id) {
-            $tenant = Tenant::find($id);
-        } else {
-            $v = $slug ?? $key;
+        // tenants から検索（slug/key 両方）
+        $tenant = Tenant::where('slug', $slug)->get();
 
-            // tenants から検索（slug/key 両方）
-            $tenant = Tenant::where('slug', $v)->orWhere('key', $v)->first();
-
-            // 見つからなければ sites から tenant_id を辿る
-            if (!$tenant) {
-                $site = Site::where('slug', $v)->orWhere('key', $v)->first();
-                if ($site && $site->tenant_id) {
-                    $tenant = Tenant::find($site->tenant_id);
-                }
-            }
-        }
 
         if (!$tenant) {
             return response()->json(['message' => 'tenant not found'], 404);

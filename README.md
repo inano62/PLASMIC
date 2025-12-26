@@ -48,5 +48,14 @@ docker compose exec app php artisan db:seed
 git clone https://github.com/xxx/plasmic.git
 cd plasmic
 docker compose up -d
+docker compose down
+docker compose up -d --build app
+docker compose exec app sh -lc "composer install --no-interaction --prefer-dist"
+docker compose exec app sh -lc "php artisan migrate:fresh --seed"
+docker compose exec app sh -lc "ls -la /var/www && ls -la /var/www/vendor || true && ls -la /var/www/composer.json || true"
+docker compose exec app sh -lc "composer install --no-interaction --prefer-dist -vvv"
+docker compose exec app sh -lc "test -f /var/www/vendor/autoload.php && echo OK || (echo NG; ls -la /var/www/vendor || true)"
+docker compose exec app sh -lc "php artisan migrate:fresh --seed"
+
 # http://localhost:8080 (WordPress)
 # http://localhost:5173 (React Dev)
