@@ -390,19 +390,32 @@ class AppointmentController extends Controller
             'purpose_title'  => $req->input('purpose_title', 'オンライン相談'),
             'purpose_detail' => $req->input('purpose_detail'),
         ]);
+//        $guestUrl = url("/wait?room={$a->room_name}");
+//        $hostUrl  = url("/host?aid={$a->id}&room={$a->room_name}");
+//
+//        if ($req->filled('client_email')) {
+//            Mail::raw(
+//                "予約が確定しました。\n開始: {$starts->format('Y-m-d H:i')}\n入室URL: {$a->clientJoinPath}",
+//                fn($m)=>$m->to($a->client_email)->subject('【予約確認】オンライン面談のご案内')
+//            );
+//            Mail::raw(
+//                "新規予約です。\n開始: {$starts->format('Y-m-d H:i')}\nホストURL: {$a->hostJoinPath}",
+//                fn($m)=>$m->to('office@example.com')->subject('【新規予約】対応お願いします')
+//            );
+//        }
         $guestUrl = url("/wait?room={$a->room_name}");
         $hostUrl  = url("/host?aid={$a->id}&room={$a->room_name}");
 
-        if ($req->filled('client_email')) {
-            Mail::raw(
-                "予約が確定しました。\n開始: {$starts->format('Y-m-d H:i')}\n入室URL: {$a->clientJoinPath}",
-                fn($m)=>$m->to($a->client_email)->subject('【予約確認】オンライン面談のご案内')
-            );
-            Mail::raw(
-                "新規予約です。\n開始: {$starts->format('Y-m-d H:i')}\nホストURL: {$a->hostJoinPath}",
-                fn($m)=>$m->to('office@example.com')->subject('【新規予約】対応お願いします')
-            );
-        }
+        Mail::raw(
+            "予約が確定しました。\n開始: {$starts->format('Y-m-d H:i')}\n入室URL: {$guestUrl}",
+            fn($m)=>$m->to($a->client_email)->subject('【予約確認】オンライン面談のご案内')
+        );
+
+        Mail::raw(
+            "新規予約です。\n開始: {$starts->format('Y-m-d H:i')}\nホストURL: {$hostUrl}",
+            fn($m)=>$m->to('office@example.com')->subject('【新規予約】対応お願いします')
+        );
+
         return response()->json([
             'appointmentId' => (string)$a->id,
             'clientJoinPath'=> "/wait?room={$a->room_name}",
