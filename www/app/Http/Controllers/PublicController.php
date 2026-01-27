@@ -52,7 +52,8 @@ class PublicController extends Controller
         $key = $req->query('key');
         $slug = $req->query('slug');
 
-        abort_if(!$key && !$slug, 400, 'key or slug is required');
+        abort_if(!$slug, 400, 'key or slug is required');
+        // abort_if(!$key && !$slug, 400, 'key or slug is required');
 
         $tenantQuery = Tenant::query();
         if ($slug && Schema::hasColumn('tenants', 'slug')) {

@@ -27,16 +27,14 @@ export default function PublicReserve() {
         (async () => {
             const raw = tenantFromPath || qs.get("slug") || qs.get("tenant") || qs.get("tenant_id") || "";
             if (!raw) return;
-
             let resolved: { id: number; display_name?: string } | null = null;
-
             if (/^\d+$/.test(raw)) {
                 resolved = { id: Number(raw) };
             } else {
-                resolved = await API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?slug=10`)
+                resolved = await API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?slug=office10`)
                 // resolved = await API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?slug=${encodeURIComponent(raw)}`)
                     .then((res) => res.data)
-                    .catch(async () => API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?key=1`).then((res) => res.data))
+                    .catch(async () => API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?key=10`).then((res) => res.data))
                     // .catch(async () => API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?key=${encodeURIComponent(raw)}`).then((res) => res.data))
                     .catch(() => null);
             }
@@ -45,7 +43,7 @@ export default function PublicReserve() {
             setTenant({ id: resolved.id, display_name: resolved.display_name ?? "" });
         })().catch((e) => console.error(e));
     }, []); // once
-
+console.log("tenant:",tenant)
     // 先生一覧の取得 & 自動選択
     useEffect(() => {
         if (!tenant) return;
@@ -142,9 +140,13 @@ console.log(pros)
                 <div className="card-header">1. 日時を選ぶ</div>
                 <div className="card-body">
                     {!tenant && <div className="text-muted">事務所の確認中です…</div>}
-                    {tenant && !lawyerId && <div className="text-muted">担当者を自動選択中…</div>}
-                    {tenant && lawyerId && days.length === 0 && <div className="text-muted">読み込み中、または空き枠がありません。</div>}
-
+                    {tenant && pros.length === 0 && <div className="text-muted">担当者の確認中です…</div>}
+                    {pros.map((pro: Pro) => (
+                        <div key={pro.id ?? pro.user_id}>{pro.name}</div>
+                    ))}
+                    {/* {tenant && !lawyerId && <div className="text-muted">担当者を自動選択中…</div>} */}
+                    {tenant && pros && days.length === 0 && <div className="text-muted">読み込み中、または空き枠がありません。</div>}
+console.log("days:",days)
                     {days.map(d => (
                         <div key={d.date} className="mb-2">
                             <div className="fw-semibold mb-1">{d.date}</div>
