@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Stripe\StripeClient;
+use Illuminate\Support\Str;
 use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\Webhook;
 use App\Services\SiteProvisioner;
@@ -70,6 +72,19 @@ class BillingController extends Controller
         ]);
 
         return response()->json(['url' => $session->url]);
+    }
+    public function portal(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        $stripe = new StripeClient(config('services.stripe.secret') ?? env('STRIPE_SECRET'));
+        $portalSession = $stripe->billingPortal->sessions->create([
+            'customer' => $user->stripe_customer_id,
+            'return_url' => env('APP_URL') . '/admin/account',
+        ]);
+
+        return ['url' => $portalSession->url];
     }
 
     public function thanks(Request $req) {
@@ -156,8 +171,8 @@ class BillingController extends Controller
     }
     private function slugFromName(string $name): string
     {
-        $base = \Str::slug($name, '-');               // 例: "山田太郎 事務所" → "shan-tang"
-        $base = $base ?: ('office-'.\Str::random(6)); // すべて非ASCIIの保険
+        $base = Str::slug($name, '-');               // 例: "山田太郎 事務所" → "shan-tang"
+        $base = $base ?: ('office-'.Str::random(6)); // すべて非ASCIIの保険
         $slug = $base;
         $i = 1;
         while (Tenant::where('slug', $slug)->exists()) {
@@ -206,7 +221,7 @@ class BillingController extends Controller
                 'site'             => $site->only('id,slug'),
             ]);
         } catch (\Throwable $e) {
-            \Log::error('Stripe session retrieve failed', ['sid'=>$sid, 'e'=>$e->getMessage()]);
+            Log::error('Stripe session retrieve failed', ['sid'=>$sid, 'e'=>$e->getMessage()]);
             return response()->json([
                 'message' => 'session lookup failed',
                 'error'   => $e->getMessage(),

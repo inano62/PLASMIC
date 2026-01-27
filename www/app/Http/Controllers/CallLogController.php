@@ -3,7 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CallLog;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CallLogController extends Controller
 {
@@ -74,5 +74,51 @@ class CallLogController extends Controller
             'id'   => $call->id,
             'data' => $call->fresh()->toArray(),  // ← 実際に保存された列を確認
         ], 200);
+    }
+
+    public function debug(string $room)
+    {
+        $row = CallLog::where('room_name', $room)
+            ->orderByDesc('id')
+            ->first(['id', 'room_name', 'started_at', 'ended_at', 'duration_sec', 'meta']);
+
+        return response()->json($row);
+    }
+
+    public function stream(): StreamedResponse
+    {
+        return response()->stream(function () {
+            while (true) {
+                $rows = CallLog::orderByDesc('id')->limit(10)->get([
+                    'id', 'room_name', 'started_at', 'ended_at', 'duration_sec',
+                ]);
+                echo "event: call_logs\n";
+                echo "data: " . json_encode($rows) . "\n\n";
+                @ob_flush();
+                flush();
+                sleep(1);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+        ]);
+    }
+
+    public function endCall(Request $request)
+    {
+        $room = $request->input('room');
+        abort_unless($room, 400, 'room required');
+
+        $log = CallLog::where('room_name', $room)->latest('id')->first();
+        if (!$log) {
+            return response()->json(['ok' => true]);
+        }
+
+        $ended = now();
+        $log->ended_at = $ended;
+        $log->duration_sec = $log->started_at ? $ended->diffInSeconds($log->started_at) : null;
+        $log->save();
+
+        return response()->json(['ok' => true]);
     }
 }

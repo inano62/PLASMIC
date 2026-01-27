@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -32,6 +33,48 @@ class AuthController extends Controller
             'role'  => $user->role,
             'tenants' => $tenants,
             'primary_tenant_id' => $primaryTenantId,
+        ]);
+    }
+
+    public function whoami(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user && $token = $request->bearerToken()) {
+            $pat = PersonalAccessToken::findToken($token);
+            if ($pat) {
+                $user = $pat->tokenable;
+            }
+        }
+
+        return response()->json([
+            'user' => $user?->only('id', 'name', 'email'),
+        ])->header('Cache-Control', 'no-store');
+    }
+
+    public function issueToken(Request $request)
+    {
+        $cred = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        $user = User::where('email', $cred['email'])->first();
+
+        if (!$user || !Hash::check($cred['password'], $user->password)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $token = $user->createToken('admin')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+            ],
         ]);
     }
     public function apiLogin(Request $r)

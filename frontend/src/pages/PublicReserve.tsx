@@ -33,8 +33,11 @@ export default function PublicReserve() {
             if (/^\d+$/.test(raw)) {
                 resolved = { id: Number(raw) };
             } else {
-                resolved = await API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?slug=${encodeURIComponent(raw)}`)
-                    .catch(async () => API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?key=${encodeURIComponent(raw)}`))
+                resolved = await API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?slug=10`)
+                // resolved = await API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?slug=${encodeURIComponent(raw)}`)
+                    .then((res) => res.data)
+                    .catch(async () => API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?key=1`).then((res) => res.data))
+                    // .catch(async () => API.get<{ id:number; display_name?:string }>(`public/tenants/resolve?key=${encodeURIComponent(raw)}`).then((res) => res.data))
                     .catch(() => null);
             }
 
@@ -47,7 +50,10 @@ export default function PublicReserve() {
     useEffect(() => {
         if (!tenant) return;
         (async () => {
-            const rows = await API.get<Pro[]>(`public/tenants/${tenant.id}/pros`).catch(() => []);
+            const rows = await API.get<Pro[]>(`public/tenants/10/pros`)
+            // const rows = await API.get<Pro[]>(`public/tenants/${tenant.id}/pros`)
+                .then((res) => res.data)
+                .catch(() => []);
             setPros(rows);
 
             const fromUrl = qs.get("lawyer_id");
@@ -59,7 +65,7 @@ export default function PublicReserve() {
             }
         })();
     }, [tenant?.id]);
-
+console.log(pros)
     // 空き枠
     useEffect(() => {
         if (!tenant || !lawyerId) { setDays([]); setSlot(""); return; }

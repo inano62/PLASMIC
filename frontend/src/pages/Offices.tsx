@@ -1,8 +1,23 @@
 // src/pages/Offices.tsx
 import { useEffect, useState } from "react";
-import {api} from "@/lib/api";
+import { api } from "../lib/api";
 
-type Tenant = { id:number; slug:string; display_name:string; type:string; region:string; home_url?:string|null };
+type Tenant = {
+    id: number;
+    slug: string;
+    display_name?: string;
+    name?: string;
+    type?: string;
+    region?: string;
+    home_url?: string | null;
+    home?: string | null;
+};
+
+type TenantMeta = {
+    last_page?: number;
+    total_pages?: number;
+};
+
 const API = api;
 export default function Offices() {
     const [items, setItems] = useState<Tenant[]>([]);
@@ -10,14 +25,18 @@ export default function Offices() {
     const [q, setQ] = useState("");
     const [region, setRegion] = useState("");
     const [type, setType] = useState("");
-    const [meta, setMeta] = useState<any>(null);
+    const [meta, setMeta] = useState<TenantMeta | null>(null);
 
     useEffect(() => {
         (async () => {
             const params = new URLSearchParams({ page: String(page), q, region, type });
             const res = await API.get(`/public/tenants/list?${params}`);
-            setItems(res.data);
-            setMeta(res.meta);
+
+            const data = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
+            const metaPayload: TenantMeta | null = res.data && typeof res.data === "object" ? res.data : null;
+
+            setItems(data);
+            setMeta(metaPayload);
         })();
     }, [page, q, region, type]);
 
@@ -145,24 +164,24 @@ export default function Offices() {
 
             {/* 📋 一覧 */}
             <div className="grid sm:grid-cols-2 gap-4">
-                {items.map((t) => (
+                {Array.isArray(items) && items.length > 0 ? items.map((t) => (
                     <div key={t.id} className="border rounded-xl p-4">
-                        <div className="font-semibold">{t.display_name}</div>
-                        <div className="text-sm text-slate-500 mb-3">{t.region}・{t.type} /s/{t.slug}</div>
+                        <div className="font-semibold">{t.display_name ?? t.name}</div>
+                        <div className="text-sm text-slate-500 mb-3">{t.region ?? "-"}・{t.type ?? "-"} /s/{t.slug}</div>
                         <div className="flex gap-2">
-                            {t.home_url
-                                ? <a className="btn btn-light" href={t.home_url!} target="_blank" rel="noreferrer">事務所のHP</a>
+                            {(t.home_url ?? t.home)
+                                ? <a className="btn btn-light" href={(t.home_url ?? t.home)!} target="_blank" rel="noreferrer">事務所のHP</a>
                                 : <a className="btn btn-light" href={`/s/${t.slug}`}>事務所ページ</a>}
                             <a className="btn btn-primary" href={`/s/${t.slug}/reserve`}>予約する</a>
                         </div>
                     </div>
-                ))}
+                )) : <div>読み込み中...</div>}
             </div>
 
             {/* ◀ ページネーション ▶ */}
             {meta && (
                 <div className="flex justify-center gap-2 mt-6">
-                    {Array.from({ length: meta.total_pages }, (_, i) => i + 1).map((p) => (
+                    {Array.from({ length: meta.last_page ?? meta.total_pages ?? 1 }, (_, i) => i + 1).map((p) => (
                         <button
                             key={p}
                             onClick={() => setPage(p)}

@@ -7,6 +7,8 @@ use App\Http\Controllers\PublicSiteController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Stripe\StripeClient;
 use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\{User,Site,Tenant,Page};

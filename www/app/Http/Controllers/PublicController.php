@@ -49,25 +49,28 @@ class PublicController extends Controller
     }
     public function resolve(Request $req)
     {
+        $key = $req->query('key');
         $slug = $req->query('slug');
 
-        if (!$slug) {
-            return response()->json(['message' => 'slug is required'], 400);
+        abort_if(!$key && !$slug, 400, 'key or slug is required');
+
+        $tenantQuery = Tenant::query();
+        if ($slug && Schema::hasColumn('tenants', 'slug')) {
+            $tenantQuery->where('slug', $slug);
+        }
+        if ($key) {
+            $tenantQuery->orWhere('key', $key);
         }
 
-        $tenant = null;
-
-        // tenants から検索（slug/key 両方）
-        $tenant = Tenant::where('slug', $slug)->get();
-
+        $tenant = $tenantQuery->first();
 
         if (!$tenant) {
             return response()->json(['message' => 'tenant not found'], 404);
         }
 
         return response()->json([
-            'id'           => (int) $tenant->id,
-            'display_name' => $tenant->display_name,
+            'id' => (int) $tenant->id,
+            'display_name' => $tenant->display_name ?? $tenant->name,
         ]);
     }
 }
