@@ -1,5 +1,5 @@
-import {JSX, useEffect, useMemo, useState} from "react";
-import {useParams, useLocation, Link, useLoaderData} from "react-router-dom";
+import {type JSX, useEffect, useMemo, useState} from "react";
+import {useParams, useLocation, Link} from "react-router-dom";
 import type { Block } from "./blocks/types";
 import Hero from "./blocks/Hero";
 import Features from "./blocks/Features";
@@ -8,30 +8,42 @@ import HeaderBlock from "./blocks/HeaderBlock.tsx";
 import ImageBlock from "./blocks/ImageBlock.tsx";
 import MediaCard from "./blocks/MediaCard";
 import Gallery from "./blocks/Gallery";
-import {api} from "../lib/api.ts";
 
 type ApiResp = {
     site: { title: string; slug: string };
-    page: { title: string; path: string; blocks: Block[] };
+    page: { title: string; path: string; blocks: BlockWithId[] };
     nav: { title: string; path: string }[];
 };
-type Office = { id:number; name:string };
-type Site = { id:number; slug:string; title:string; office?: Office };
 
-const RENDERERS: Record<string, (p: { data: any }) => JSX.Element> = {
-    hero: (p) => <Hero data={p.data} />,
-    features: (p) => <Features data={p.data} />,
-    cta: (p) => <Cta data={p.data} />,
-    header: (p) => <HeaderBlock data={p.data} />,
-    image: (p:any) => <ImageBlock data={p.data} />,
-    mediacard: (p:any) => <MediaCard data={p.data} />,
-    gallery: (p:any) => <Gallery data={p.data} />
+type BlockWithId = Block & { id?: string | number; sort?: number };
+type HeroData = {
+    kicker?: string;
+    title?: string;
+    subtitle?: string;
+    btnText?: string;
+    btnHref?: string;
+    headline?: string;
+    imgUrl?: string;
+    imageUrl?: string;
+    bgUrl?: string;
+    avatarUrl: string;
 };
-
 export default function PublicSite() {
-    const site = useLoaderData() as Site;
+
     const { slug } = useParams();
     const loc = useLocation();
+
+    const RENDERERS: Record<string, (p: { data: unknown }) => JSX.Element> = {
+        hero: (p) => <Hero data={p.data as HeroData} />,
+        features: (p) => <Features data={p.data as Record<string, unknown>} />,
+        cta: () => <Cta siteSlug={slug} />,
+        header: (p) => <HeaderBlock data={p.data as Record<string, unknown>} />,
+        image: (p) => <ImageBlock data={p.data as Record<string, unknown>} />,
+        mediacard: (p) => <MediaCard data={p.data as Record<string, unknown>} />,
+        gallery: (p) => <Gallery data={p.data as { items: { imgUrl: string; alt?: string }[]; columns?: { sm: number; md: number; lg: number }; gap?: number; radius?: string }} />
+    };
+
+
 
     const path = useMemo(() => {
         const raw = loc.pathname.replace(/^\/s\/[^/]+/, "") || "/";
@@ -58,8 +70,14 @@ export default function PublicSite() {
                     setData(json);
                     document.title = `${json.page.title} | ${json.site.title}`;
                 }
-            } catch (e: any) {
-                if (!ignore) setErr(e.message || "Error");
+            } catch (e: unknown) {
+                if (!ignore) {
+                    if (e instanceof Error) {
+                        setErr(e.message || "Error");
+                    } else {
+                        setErr("Error");
+                    }
+                }
             }
         })();
         return () => {
@@ -69,11 +87,9 @@ export default function PublicSite() {
 
     if (err) return <div style={{ padding: 24 }}>読み込み失敗: {err}</div>;
     if (!data) return <div style={{ padding: 24 }}>読み込み中…</div>;
-    console.log(data?.page?.id);
-    const heroBlock = data.page.blocks.find(b => String(b.type).toLowerCase() === "hero");
-    const bgId = data?.page?.id;
-    const heroImgUrl = bgId ? `${import.meta.env.VITE_API_ORIGIN}/api/media/${bgId}` : undefined;
-//     const heroImgUrl: string | undefined = heroBlock?.data?.imgUrl;
+// console.log(data?.page?.id); // Removed because 'id' does not exist on page
+const heroBlock = data.page.blocks.find(b => String(b.type).toLowerCase() === "hero") as { type: string; data: HeroData } | undefined;
+const heroImgUrl: string | undefined = heroBlock?.data?.imgUrl;
 console.log(heroImgUrl);
     return (
         <div className="relative isolate">
@@ -112,7 +128,7 @@ console.log(heroImgUrl);
                     .map((b) => {
                         const type = String(b.type || '').toLowerCase();    // ★小文字化
                         const Comp = RENDERERS[type];
-                        const key  = (b as any).id ?? `${type}-${b.sort ?? 0}`; // ★安定 key
+                        const key  = (b as BlockWithId).id ?? `${type}-${(b as BlockWithId).sort ?? 0}`; // ★安定 key
                         return (
                             <div key={key}>
                                 {Comp ? (

@@ -1,4 +1,3 @@
-import React from "react";
 import type { FeaturesData } from "./types";
 
 export default function Features({ data }: { data: FeaturesData }) {

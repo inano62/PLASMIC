@@ -8,7 +8,8 @@ type SlotDay = { date: string; slots: string[] };
 const API = api;
 export default function PublicReserve() {
     const { tenant: tenantFromPath } = useParams();
-    const qs = new URLSearchParams(useLocation().search);
+    const location = useLocation();
+    const qs = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
     const [tenant, setTenant] = useState<Tenant | null>(null);
     const [pros, setPros] = useState<Pro[]>([]);
@@ -62,18 +63,18 @@ console.log("tenant:",tenant)
                 setLawyerId((rows[0].user_id ?? rows[0].id) ?? null);
             }
         })();
-    }, [tenant?.id]);
+    }, [qs, tenant]);
 console.log(pros)
     // 空き枠
     useEffect(() => {
         if (!tenant || !lawyerId) { setDays([]); setSlot(""); return; }
 
         (async () => {
-            const resp: any = await API.get<any>(`public/tenants/${tenant.id}/slots?lawyer_id=${lawyerId}`)
+            const resp = await API.get<{ days?: SlotDay[] } | SlotDay[]>(`public/tenants/${tenant.id}/slots?lawyer_id=${lawyerId}`)
                 .catch(() => null);
 
-            const rows = Array.isArray(resp) ? resp : (resp?.days ?? []);
-            const normalized: SlotDay[] = rows.map((d: any) => ({
+            const rows = Array.isArray(resp?.data) ? resp?.data : (resp?.data?.days ?? []);
+            const normalized: SlotDay[] = rows.map((d: { date: string; slots?: string[]; times?: string[] }) => ({
                 date: d.date,
                 // times / slots どちらでもOKにする
                 slots: d.slots ?? d.times ?? [],
@@ -81,7 +82,7 @@ console.log(pros)
 
             setDays(normalized);
         })();
-    }, [tenant?.id, lawyerId]);
+    }, [tenant?.id, lawyerId, tenant]);
 
     const canSubmit = useMemo(
         () => !!tenant?.id && !!lawyerId && !!slot && !!name && /\S+@\S+/.test(email),
@@ -103,7 +104,7 @@ console.log(pros)
                 client_email: email,
                 start_at: new Date(slot).toISOString(),
                 starts_at: new Date(slot).toISOString(),
-                visitor_id: String(cu.user_id ?? "public"),
+                visitor_id: String(cu.data.user_id ?? "public"),
                 purpose_title: "オンライン相談",
                 purpose_detail: preferredNote, // ← 任意希望をここへ
             };
@@ -113,9 +114,10 @@ console.log(pros)
                 payload
             );
 
-            setResult({ host: ap.hostJoinPath, guest: ap.clientJoinPath, starts_at: slot });
-        } catch (e:any) {
-            alert(e?.message ?? "予約に失敗しました");
+            setResult({ host: ap.data.hostJoinPath, guest: ap.data.clientJoinPath, starts_at: slot });
+        } catch (e: Error | unknown) {
+            const message = e instanceof Error ? e.message : "予約に失敗しました";
+            alert(message ?? "予約に失敗しました");
             console.error(e);
         } finally {
             setSubmitting(false);

@@ -13,16 +13,16 @@ import { Footer } from "./components/Footer";
 
 export default function PlasmicLanding(props: { vertical?: VerticalKey }) {
     const vertical = useVertical(props.vertical);
-    const V = useMemo(() => VERTICALS[vertical] ?? VERTICALS["default"], [vertical]);
+    const V = useMemo(() => VERTICALS[vertical as keyof typeof VERTICALS] ?? VERTICALS["default"], [vertical]);
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900">
+        <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white text-slate-900">
             <Header badge={V.badge} vertical={vertical} />
             <Hero
                 headline={V.headline}
                 subhead={V.subhead}
                 bullets={V.heroBullets}
-                trust={V.trust}
+                trust={[V.trust]}
                 reserveHref={V.PublicReserve}
             />
             <Features />

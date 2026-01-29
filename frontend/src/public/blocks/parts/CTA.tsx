@@ -1,5 +1,13 @@
 // src/public/blocks/parts/CTA.tsx
-export default function CTA({ d }: { d: any }){
+interface CTAProps {
+    d?: {
+        text?: string;
+        btnHref?: string;
+        btnText?: string;
+    };
+}
+
+export default function CTA({ d }: CTAProps) {
     return (
         <section className="cta">
             <div className="cta-text">{d?.text ?? 'お問い合わせ'}</div>

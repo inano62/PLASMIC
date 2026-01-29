@@ -1,7 +1,5 @@
 //src/public/blocks/index.tsx
-
-
-export type Block = { type: string; data: any; sort?: number };
+export type Block = { type: string; data: Record<string, unknown>; sort?: number };
 
 
 import Hero from './parts/Hero';

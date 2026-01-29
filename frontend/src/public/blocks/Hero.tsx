@@ -1,4 +1,4 @@
-import React from "react";
+
 import type { HeroData } from "./types";
 
 export default function Hero({ data }: { data: HeroData }) {

@@ -1,5 +1,5 @@
 // src/pages/TenantHome.tsx
-import { useTenantRequired } from "@/features/landing/hooks/useTenantRequired";
+import { useTenantRequired } from "../features/landing/hooks/useTenantRequired";
 export default function TenantHome() {
     const { tenant, loading } = useTenantRequired();
     if (loading) return <div className="p-8 text-center">読み込み中…</div>;

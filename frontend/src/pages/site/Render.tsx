@@ -1,20 +1,30 @@
 // frontend/src/pages/admin/site/AdminSiteBuilder.tsx
 import { useEffect, useState } from "react";
 import { Button } from "react-bootstrap";
-import API from "@/lib/api";
+import { api } from "../../lib/api";
 
-// ※ types.ts を使うなら↓の import を有効化（パスにスペースなし！）
-// import type { Block as BlockType } from "../../../lib/site/types";
+type Site  = { id:number; title:string; slug:string; meta?:Record<string, unknown> };
+type BlockData = {
+    kicker?: string;
+    title?: string;
+    subtitle?: string;
+    btnText?: string;
+    btnHref?: string;
+    imgId?: number | null;
+    imgUrl?: string;
+    items?: { title?: string; text?: string }[];
+    text?: string;
+    [key: string]: string | number | { title?: string; text?: string }[] | number | null | undefined;
+};
 
-type Site  = { id:number; title:string; slug:string; meta?:any };
-type Block = { id:number; type:string; sort:number; data:any };
+type Block = { id:number; type:string; sort:number; data: BlockData };
 type Page  = { id:number; title:string; path:string; sort:number; blocks: Block[] };
 
 const SITE_ID = 1;
 
 /* ===== ブロック別ミニエディタ ===== */
-function HeroEditor({data, onSave}:{data:any; onSave:(diff:any)=>void}) {
-    const [v,setV] = useState<any>({
+function HeroEditor({data, onSave}:{data: BlockData; onSave:(diff: BlockData)=>void}) {
+    const [v,setV] = useState<BlockData>({
         kicker:   data?.kicker ?? "",
         title:    data?.title ?? "",
         subtitle: data?.subtitle ?? "",
@@ -29,7 +39,11 @@ function HeroEditor({data, onSave}:{data:any; onSave:(diff:any)=>void}) {
         if (!f) return;
         const fd = new FormData();
         fd.append("file", f);
-        const uploaded = await API.jupload<{id:number; url:string}>("/media", fd);
+        // Use api.post for file upload, assuming it returns {id, url}
+        const response = await api.post("/media", fd, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
+        const uploaded = response.data as { id: number; url: string };
         setV({ ...v, imgId: uploaded.id, imgUrl: uploaded.url });
     }
 
@@ -38,7 +52,7 @@ function HeroEditor({data, onSave}:{data:any; onSave:(diff:any)=>void}) {
             {["kicker","title","subtitle","btnText","btnHref"].map(k=>(
                 <div className={k==="subtitle" ? "col-12" : "col-md-6"} key={k}>
                     <label className="form-label">{k}</label>
-                    <input className="form-control" value={v[k]||""}
+                    <input className="form-control" value={typeof v[k] === "string" || typeof v[k] === "number" ? v[k] : ""}
                            onChange={e=>setV({...v, [k]: e.target.value})}/>
                 </div>
             ))}
@@ -54,8 +68,8 @@ function HeroEditor({data, onSave}:{data:any; onSave:(diff:any)=>void}) {
     );
 }
 
-function FeaturesEditor({data, onSave}:{data:any; onSave:(diff:any)=>void}) {
-    const [items,setItems] = useState<any[]>(data?.items || []);
+function FeaturesEditor({data, onSave}:{data: BlockData; onSave:(diff: BlockData)=>void}) {
+    const [items,setItems] = useState<{ title?: string; text?: string }[]>(data?.items || []);
     return (
         <div>
             {items.map((it, idx)=>(
@@ -82,14 +96,14 @@ function FeaturesEditor({data, onSave}:{data:any; onSave:(diff:any)=>void}) {
     );
 }
 
-function CtaEditor({data, onSave}:{data:any; onSave:(diff:any)=>void}) {
-    const [v,setV]=useState<any>({ text:data?.text||"", btnText:data?.btnText||"", btnHref:data?.btnHref||"" });
+function CtaEditor({data, onSave}:{data: BlockData; onSave:(diff: BlockData)=>void}) {
+    const [v,setV]=useState<BlockData>({ text:data?.text||"", btnText:data?.btnText||"", btnHref:data?.btnHref||"" });
     return (
         <div className="row g-3">
             {["text","btnText","btnHref"].map(k=>(
                 <div className="col-md-6" key={k}>
                     <label className="form-label">{k}</label>
-                    <input className="form-control" value={v[k]||""}
+                    <input className="form-control" value={typeof v[k] === "string" || typeof v[k] === "number" ? v[k] : ""} 
                            onChange={e=>setV({...v, [k]:e.target.value})}/>
                 </div>
             ))}
@@ -106,38 +120,38 @@ export default function AdminSiteBuilder() {
 
     async function load() {
         setLoading(true);
-        const s = await API.getJson<{site: Site; pages: Page[]}>(`/admin/sites/${SITE_ID}`);
-        setSite(s.site);
-        setPages(s.pages);
+        const res = await api.get<{site: Site; pages: Page[]}>(`/admin/sites/${SITE_ID}`);
+        setSite(res.data.site);
+        setPages(res.data.pages);
         setLoading(false);
     }
     useEffect(()=>{ load(); }, []);
 
     async function saveSite() {
         if (!site) return;
-        await API.jput(`/admin/sites/${SITE_ID}`, { title: site.title, slug: site.slug, meta: site.meta });
+        await api.put(`/admin/sites/${SITE_ID}`, { title: site.title, slug: site.slug, meta: site.meta });
         alert("保存しました");
     }
 
     async function publishAndOpen() {
-        const res = await API.postJson<{slug?:string}>(`/admin/sites/${SITE_ID}/publish`, {});
-        const slug = res.slug || site?.slug || "";
+        const res = await api.post<{slug?:string}>(`/admin/sites/${SITE_ID}/publish`, {});
+        const slug = res.data.slug || site?.slug || "";
         window.open(`/s/${slug}/`, "_blank");
     }
 
     async function addPage(path="/", title="Home") {
-        await API.postJson(`/admin/sites/${SITE_ID}/pages`, { path, title });
+        await api.post(`/admin/sites/${SITE_ID}/pages`, { path, title });
         await load();
     }
 
     async function addBlock(pageId:number, type:string) {
-        await API.postJson(`/admin/pages/${pageId}/blocks`, { type, data:{} });
+        await api.post(`/admin/pages/${pageId}/blocks`, { type, data:{} });
         await load();
     }
 
-    async function updateBlock(b: Block, diff:any) {
+    async function updateBlock(b: Block, diff: BlockData) {
         const next = { ...b, data: { ...b.data, ...diff } };
-        await API.jput(`/admin/blocks/${b.id}`, { data: next.data, sort: next.sort });
+        await api.put(`/admin/blocks/${b.id}`, { data: next.data, sort: next.sort });
         await load();
     }
 
@@ -147,13 +161,13 @@ export default function AdminSiteBuilder() {
         const j = idx + dir;
         if (j < 0 || j >= arr.length) return;
         [arr[idx], arr[j]] = [arr[j], arr[idx]];
-        await API.postJson(`/admin/pages/${page.id}/reorder`, { ids: arr.map(x=>x.id) });
+        await api.post(`/admin/pages/${page.id}/reorder`, { ids: arr.map(x=>x.id) });
         await load();
     }
 
     async function removeBlock(id:number) {
         if (!confirm("削除しますか？")) return;
-        await API.jdel(`/admin/blocks/${id}`);
+        await api.delete(`/admin/blocks/${id}`);
         await load();
     }
 

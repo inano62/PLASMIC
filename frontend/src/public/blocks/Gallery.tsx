@@ -1,5 +1,5 @@
 export default function Gallery({ data }:{
-    data:{ items:{imgUrl:string;alt?:string}[]; columns?: any; gap?: number; radius?: string }
+    data:{ items:{imgUrl:string;alt?:string}[]; columns?: {sm:number;md:number;lg:number}; gap?: number; radius?: string }
 }) {
     const cols = data.columns ?? { sm:2, md:3, lg:4 };
     const r = data.radius === "xl" ? "rounded-2xl" : data.radius === "md" ? "rounded-md" : "";

@@ -13,9 +13,13 @@ export function Pricing({ signupHref }:{ signupHref: string }) {
                         <ul className="mt-4 space-y-2 text-sm text-slate-600">
                             {p.points.map(pt => <li key={pt}>• {pt}</li>)}
                         </ul>
-                        <a href={signupHref} className="mt-6 px-4 py-2 rounded-xl bg-indigo-600 text-white text-center hover:bg-indigo-700">申し込む</a>
+                        <a href={signupHref} className="mt-6 px-4 py-2 rounded-xl bg-blue-600 text-white text-center hover:bg-blue-700">申し込む</a>
                     </div>
                 ))}
+            </div>
+            <div className="grid gap-6 lg:grid-cols-1">
+                {/* ワンプランのみ残す */}
+                {/* ...existing code for monthly plan card... */}
             </div>
             <p className="text-xs text-slate-500 mt-4">※ カスタム要件がある場合はご相談ください。</p>
         </section>

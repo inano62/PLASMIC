@@ -1,4 +1,3 @@
-import React from "react";
 
 export default function HeaderBlock({ data }: { data: { imgUrl?: string, altText?: string } }) {
     if (!data?.imgUrl) return null;

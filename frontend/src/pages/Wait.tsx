@@ -28,7 +28,7 @@ export default function Wait() {
 
                     // API.get は JSON を返す
                     const v = await API.get<{ room: string }>(url);
-                    room = v.room;
+                    room = v.data.room;
                     if (!room) throw new Error("ticket/aid の解決に失敗しました");
                 }
 
@@ -40,9 +40,13 @@ export default function Wait() {
                     name: identity,
                 });
 
-                setState({ room, token: res.token });
-            } catch (e: any) {
-                setState({ err: e.message || String(e) });
+                setState({ room, token: res.data.token });
+            } catch (e: unknown) {
+                if (e instanceof Error) {
+                    setState({ err: e.message });
+                } else {
+                    setState({ err: String(e) });
+                }
             }
         })();
     }, []);

@@ -14,8 +14,8 @@ export function Hero({ headline, subhead, bullets, trust, reserveHref }: HeroPro
                     <h1 className="text-4xl md:text-5xl font-extrabold leading-tight tracking-tight">{headline}</h1>
                     <p className="mt-5 text-lg text-slate-600">{subhead}</p>
                     <div className="mt-8 flex flex-wrap gap-3">
-                        <a id="cta" href={reserveHref} className="px-5 py-3 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700">相談する</a>
-                        <a href="#pricing" className="px-5 py-3 rounded-2xl border border-slate-300 hover:bg-slate-50">料金を見る</a>
+                        <a id="cta" href={reserveHref} className="px-5 py-3 rounded-2xl bg-blue-600 text-white hover:bg-blue-700">個人の方：困りごとの相談をする方はこちらから</a>
+                        <a href="#pricing" className="px-5 py-3 rounded-2xl border border-slate-300 hover:bg-slate-50">士業の方：登録して当サイトを利用する方はこちらから</a>
                     </div>
                     <div className="mt-6 flex flex-wrap gap-2">
                         {trust.map(t => (
@@ -24,7 +24,7 @@ export function Hero({ headline, subhead, bullets, trust, reserveHref }: HeroPro
                     </div>
                 </div>
                 <div className="relative">
-                    <div className="absolute -inset-4 rounded-3xl bg-gradient-to-tr from-indigo-200/60 to-fuchsia-200/60 blur-2xl"/>
+                    <div className="absolute -inset-4 rounded-3xl bg-gradient-to-tr from-sky-200/60 to-blue-200/60 blur-2xl"/>
                     <div className="relative rounded-3xl border border-slate-200 shadow-xl bg-white p-4">
                         <div className="aspect-video w-full rounded-2xl bg-slate-100 grid place-items-center text-slate-500">
                             {/*<span>Product Preview</span>*/}

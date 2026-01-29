@@ -5,14 +5,14 @@ export type HeroData = {
     btnText?: string;
     btnHref?: string;
     headline?: string;
-    imgUrl? : any;
-    imageUrl?:any;
-    bgUrl?:any;
-    avatarUrl:any;
+    imgUrl?: string;
+    imageUrl?: string;
+    bgUrl?: string;
+    avatarUrl: string;
 };
 export type FeaturesData = {
     items?: { title?: string; text?: string }[];
 };
 export type CtaData = { text?: string; btnText?: string; btnHref?: string };
 
-export type Block = { type: string; data: any; sort?: number };
+export type Block = { type: string; data: HeroData | FeaturesData | CtaData; sort?: number };

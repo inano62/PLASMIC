@@ -1,6 +1,6 @@
 // src/pages/DevCall.tsx
 import { useRef, useState } from "react";
-import { Room, RoomEvent, Track, createLocalTracks } from "livekit-client";
+import { Room, RoomEvent, Track, createLocalTracks, RemoteVideoTrack }  from "livekit-client";
 export default function DevCall(){
     const [status,setStatus]=useState("ready");
     const localRef=useRef<HTMLVideoElement>(null);
@@ -9,9 +9,11 @@ export default function DevCall(){
         setStatus("joining...");
         const roomName = "dev-room";
         const { token, url } = await fetch("/api/dev/token",{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify({room:roomName,identity:"dev_"+crypto.randomUUID()})}).then(r=>r.json());
-        const room = new Room(); await room.connect(url, token, { publishDefaults:{ simulcast:false }});
-        room.on(RoomEvent.TrackSubscribed, (_p, t)=>{ if(t?.kind===Track.Kind.Video && remoteRef.current) t.attach(remoteRef.current); });
-        const tracks = await createLocalTracks({ audio:true, video:{width:1280,height:720} });
+        const room = new Room(); await room.connect(url, token);
+        room.on(RoomEvent.TrackSubscribed, (track)=>{ 
+            if(track.kind === Track.Kind.Video && remoteRef.current) (track as RemoteVideoTrack).attach(remoteRef.current); 
+        });
+        const tracks = await createLocalTracks({ audio:true, video:{ resolution: { width: 1280, height: 720 } } });
         for(const t of tracks){ await room.localParticipant.publishTrack(t); if(t.kind==='video' && localRef.current) t.attach(localRef.current); }
         setStatus("connected");
     }

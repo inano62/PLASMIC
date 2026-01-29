@@ -1,6 +1,9 @@
 // src/public/blocks/parts/Features.tsx
-export default function Features({ d }: { d: any }){
-    const items = (d?.items ?? []) as {title?:string; text?:string}[];
+type FeatureItem = { title?: string; text?: string };
+type FeaturesProps = { d: { items?: FeatureItem[] } };
+
+export default function Features({ d }: FeaturesProps) {
+    const items = (d?.items ?? []) as FeatureItem[];
     return (
         <section className="features">
             <div className="grid">

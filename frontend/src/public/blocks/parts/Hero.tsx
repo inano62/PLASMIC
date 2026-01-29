@@ -1,5 +1,15 @@
 // src/public/blocks/parts/Hero.tsx
-export default function Hero({ d }: { d: any }){
+interface HeroData {
+    kicker?: string;
+    title?: string;
+    subtitle?: string;
+    btnText?: string;
+    btnHref?: string;
+    imageUrl?: string;
+    avatarUrl?: string;
+}
+
+export default function Hero({ d }: { d: HeroData }){
     return (
         <section className="hero">
             {d?.kicker && <div className="hero-kicker">{d.kicker}</div>}

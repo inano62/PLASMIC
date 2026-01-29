@@ -1,4 +1,4 @@
-import type { FeatureCard, FaqItem, VerticalContent, VerticalKey } from "./types";
+import type { FeatureCard, FaqItem } from "./types";
 
 export const baseFeatures: FeatureCard[] = [
     { title: "予約/カレンダー", desc: "空き枠の公開、日程調整、カレンダー同期。" },
@@ -21,13 +21,17 @@ export const PRICING = [
     { name: "エンタープライズ", price: "お見積り", points: ["多拠点/多ブランド対応", "SLA/セキュリティ審査", "専用導入支援"] },
 ] as const;
 
-export const VERTICALS: Record<VerticalKey, VerticalContent> = {
+export const VERTICALS = {
     default: {
-        badge: "MULTI-INDUSTRY",
-        headline: "ワンプラン、全部入り。",
-        subhead: "士業・美容・教育に対応",
-        heroBullets: ["予約→決済→入室URL 自動化","HP公開と管理が1つに"],
-        trust: ["士業の現場で検証済み"],
+        badge: "士業のための予約・オンライン対応プラットフォーム",
+        headline: "士業のための、信頼感ある面談予約とオンライン対応",
+        subhead: "弁護士・司法書士・行政書士・社会労務士向けに最適化。予約〜入室URLの発行まで、1つで完結。",
+        heroBullets: [
+            "事務所ごとの面談枠を簡単管理",
+            "相談内容の事前ヒアリングで対応品質を向上",
+            "オンライン面談の入室URLを自動発行",
+        ],
+        trust: "オンライン集客したいけど、信頼感のある予約体験を提供したい士業の方へ",
         features: baseFeatures,
         faq: baseFaq,
         demoLink: "/demo",
