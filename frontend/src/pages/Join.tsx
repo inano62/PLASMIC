@@ -27,12 +27,11 @@ export default function Join() {
                 const room = new Room();
                 await room.connect(livekit_url, token);
 
-                room.on(RoomEvent.TrackSubscribed, (pub:any, track:any) => {
-                    const t = track ?? pub?.track;
-                    if (t?.kind === Track.Kind.Video && remoteVideo.current) t.attach(remoteVideo.current);
+                room.on(RoomEvent.TrackSubscribed, (track: Track) => {
+                    if (track?.kind === Track.Kind.Video && remoteVideo.current) track.attach(remoteVideo.current);
                 });
 
-                const tracks = await createLocalTracks({ audio:true, video:{ width:1280, height:720 }});
+                const tracks = await createLocalTracks({ audio:true, video:{ resolution:{ width:1280, height:720 } } });
                 for (const t of tracks) {
                     await room.localParticipant.publishTrack(t);
                     if (t.kind === Track.Kind.Video && localVideo.current) t.attach(localVideo.current);
@@ -40,8 +39,8 @@ export default function Join() {
 
                 cleanup = () => { tracks.forEach(t=>t.stop()); room.disconnect(); };
                 setStatus("connected");
-            } catch (e:any) {
-                setStatus("error: "+(e?.message ?? e));
+            } catch (e:unknown) {
+                setStatus("error: "+(e instanceof Error ? e.message : String(e)));
             }
         })();
 

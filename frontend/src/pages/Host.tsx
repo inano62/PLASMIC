@@ -1,7 +1,7 @@
 // src/pages/Host.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
-import type { Room, DisconnectReason } from "livekit-client";
+import type { Room } from "livekit-client";
 import { RoomEvent, type LocalAudioTrack } from "livekit-client";
 import "@livekit/components-styles";
 
@@ -38,9 +38,9 @@ export default function Host() {
                     identity,
                     name: "host",
                 });
-                setState((s) => ({ ...s, token: res.token }));
-            } catch (e: any) {
-                setState((s) => ({ ...s, err: e.message ?? String(e) }));
+                setState((s) => ({ ...s, token: res.data.token }));
+            } catch (e: unknown) {
+                setState((s) => ({ ...s, err: e instanceof Error ? e.message : String(e) }));
             }
         })();
     }, [state.room]);
@@ -103,7 +103,7 @@ export default function Host() {
                 audio
                 video
                 // 接続成功 → start（冪等）
-                onConnected={(room: Room) => {
+                onConnected={(room?: Room) => {
                     if (!room?.name) return;
                     emitCallEvent(room.name, "start");
 
@@ -131,9 +131,9 @@ export default function Host() {
                     });
                 }}
                 // 切断 → end
-                onDisconnected={(room: Room, _reason?: DisconnectReason) => {
-                    if (!room?.name) return;
-                    emitCallEvent(room.name, "end");
+                onDisconnected={() => {
+                    if (!roomName) return;
+                    emitCallEvent(roomName, "end");
                 }}
                 // エラー
                 onError={(e) => {

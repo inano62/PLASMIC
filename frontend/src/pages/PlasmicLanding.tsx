@@ -27,7 +27,7 @@ interface VerticalContent {
 interface FeatureCard { title: string; desc: string }
 interface FaqItem { q: string; a: string }
 
-const isVertical = (k: string): k is VerticalKey => ["default","law","beauty","edu"].includes(k as any);
+const isVertical = (k: string): k is VerticalKey => (["default","law","beauty","edu"] as const).includes(k as VerticalKey);
 
 // ---- shared copy (先に定義：TDZを避ける) ----
 const baseFeatures: FeatureCard[] = [
@@ -123,8 +123,8 @@ export default function PlasmicLanding(props: { vertical?: VerticalKey }) {
             const pathKey = path.split("/")[0] as VerticalKey;
             if (isVertical(q)) setUrlVertical(q);
             else if (isVertical(pathKey)) setUrlVertical(pathKey);
-        } catch (e) {
-            // SSR等では無視
+        } catch (e: unknown) {
+            console.log(e);
         }
     }, []);
 
